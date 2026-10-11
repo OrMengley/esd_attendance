@@ -1,0 +1,58 @@
+import { Attendance } from "../models/attendance.model";
+
+const today = new Date().toISOString().split("T")[0];
+const now = new Date().toISOString();
+
+export const initialMockAttendance: Attendance[] = [
+  {
+    id: `cls-001_${today}_std-001`,
+    attendanceDate: today,
+    date: today,
+    studentId: "std-001",
+    enrollmentId: "enr-001",
+    classroomId: "cls-001",
+    packageId: "pkg-esd-computer-001",
+    teacherId: "usr-003",
+    status: "present",
+    remark: "មកទាន់ពេល",
+    recordedBy: "usr-003",
+    recordedAt: now,
+    updatedBy: "usr-003",
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    id: `cls-001_${today}_std-002`,
+    attendanceDate: today,
+    date: today,
+    studentId: "std-002",
+    enrollmentId: "enr-002",
+    classroomId: "cls-001",
+    packageId: "pkg-esd-computer-001",
+    teacherId: "usr-003",
+    status: "late",
+    remark: "យឺត ១០ នាទី",
+    recordedBy: "usr-003",
+    recordedAt: now,
+    updatedBy: "usr-003",
+    updatedAt: now,
+    createdAt: now,
+  },
+  {
+    id: `cls-002_${today}_std-003`,
+    attendanceDate: today,
+    date: today,
+    studentId: "std-003",
+    enrollmentId: "enr-003",
+    classroomId: "cls-002",
+    packageId: "pkg-esd-computer-001",
+    teacherId: "usr-005",
+    status: "permission",
+    remark: "សុំច្បាប់ឈឺ",
+    recordedBy: "usr-005",
+    recordedAt: now,
+    updatedBy: "usr-005",
+    updatedAt: now,
+    createdAt: now,
+  },
+];

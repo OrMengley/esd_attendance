@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand-navy: #1E347B;
+    --brand-primary: #314B9C;
+    --brand-primary-hover: #263E89;
+    --brand-blue-light: #3D58AE;
+
+    --brand-gold: #F3B51B;
+    --brand-gold-light: #F9D978;
+    --brand-gold-hover: #D99A08;
+
+    --brand-background: #F7F9FC;
+    --brand-surface: #FFFFFF;
+    --brand-text: #16213D;
+    --brand-muted: #6B7894;
+    --brand-border: #E4E9F2;
+
+    --background: 216 40% 98%;
+    --foreground: 223 47% 16%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 223 47% 16%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 223 47% 16%;
+
+    --primary: 225 52% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 219 32% 92%;
+    --secondary-foreground: 223 47% 16%;
+
+    --muted: 216 35% 95%;
+    --muted-foreground: 221 16% 50%;
+
+    --accent: 219 32% 92%;
+    --accent-foreground: 223 47% 16%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 219 32% 92%;
+    --input: 219 32% 92%;
+    --ring: 225 52% 40%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 226 61% 30%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 43 90% 53%;
+    --sidebar-primary-foreground: 223 47% 16%;
+    --sidebar-accent: 226 48% 46%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 225 57% 34%;
+    --sidebar-ring: 43 90% 53%;
+  }
+
+  .dark {
+    --background: 223 47% 12%;
+    --foreground: 216 40% 98%;
+
+    --card: 224 45% 15%;
+    --card-foreground: 216 40% 98%;
+
+    --popover: 224 45% 15%;
+    --popover-foreground: 216 40% 98%;
+
+    --primary: 225 60% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 224 40% 20%;
+    --secondary-foreground: 216 40% 98%;
+
+    --muted: 224 40% 20%;
+    --muted-foreground: 221 16% 65%;
+
+    --accent: 224 40% 20%;
+    --accent-foreground: 216 40% 98%;
+
+    --destructive: 0 62.8% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 224 40% 22%;
+    --input: 224 40% 22%;
+    --ring: 225 60% 55%;
+
+    --sidebar-background: 226 61% 22%;
+    --sidebar-foreground: 216 40% 98%;
+    --sidebar-primary: 43 90% 53%;
+    --sidebar-primary-foreground: 223 47% 16%;
+    --sidebar-accent: 226 48% 38%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 225 57% 28%;
+    --sidebar-ring: 43 90% 53%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.7);
+}
