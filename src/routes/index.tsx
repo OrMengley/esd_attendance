@@ -8,7 +8,6 @@ import { StudentsListPage } from "@/pages/students/students-list-page";
 import { StudentFormPage } from "@/pages/students/student-form-page";
 import { StudentDetailPage } from "@/pages/students/student-detail-page";
 import { PackagesPage } from "@/pages/packages/packages-page";
-import { SubjectsPage } from "@/pages/subjects/subjects-page";
 import { ClassesListPage } from "@/pages/classes/classes-list-page";
 import { ClassroomFormPage } from "@/pages/classes/classroom-form-page";
 import { ClassroomDetailPage } from "@/pages/classes/classroom-detail-page";
@@ -99,7 +98,7 @@ export const router = createBrowserRouter([
               },
               {
                 path: "subjects",
-                element: <SubjectsPage />,
+                element: <Navigate to="/packages" replace />,
               },
               {
                 path: "classes",

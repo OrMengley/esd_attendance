@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
   Users,
-  BookOpen,
   School,
   ClipboardCheck,
   History,
@@ -68,12 +67,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       title: t("sidebar.packages"),
       path: "/packages",
       icon: Layers,
-      roles: ["super_admin", "admin"],
-    },
-    {
-      title: t("sidebar.subjects"),
-      path: "/subjects",
-      icon: BookOpen,
       roles: ["super_admin", "admin"],
     },
     {
