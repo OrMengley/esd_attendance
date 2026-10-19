@@ -15,6 +15,7 @@ export interface Classroom {
   expectedEndDate: string; // YYYY-MM-DD
   actualEndDate?: string;
   capacity?: number;
+  branchId?: string;
   status: ClassroomStatus;
   note?: string;
   subjectId?: string; // Legacy field

@@ -35,7 +35,10 @@ export const dailyAttendanceSummaryService = {
   /**
    * Fetch and calculate complete daily attendance summary for a selected date
    */
-  async getDailySummary(selectedDate: string): Promise<DailyAttendanceSummaryData> {
+  async getDailySummary(
+    selectedDate: string,
+    branchId?: string | null
+  ): Promise<DailyAttendanceSummaryData> {
     const targetDate = selectedDate || getCambodiaToday();
 
     // 1. Fetch all core data in parallel
@@ -86,10 +89,15 @@ export const dailyAttendanceSummaryService = {
       };
     }
 
-    // 3. Filter scheduled active classrooms for this date
+    // 3. Filter scheduled active classrooms for this date (scoped by branch if specified)
     const dayOfWeek = getDayOfWeekFromDateStr(targetDate);
 
-    const scheduledClassrooms = allClassrooms.filter((c) => {
+    const branchClassrooms =
+      branchId && branchId !== "all"
+        ? allClassrooms.filter((c) => c.branchId === branchId)
+        : allClassrooms;
+
+    const scheduledClassrooms = branchClassrooms.filter((c) => {
       // Must be active
       if (c.status !== "active") return false;
 

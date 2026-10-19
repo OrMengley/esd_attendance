@@ -11,11 +11,17 @@ import { studyPackageService } from "@/services/study-package.service";
 import { userService } from "@/services/user.service";
 import { schoolHolidayService } from "@/services/school-holiday.service";
 import { enrollmentService } from "@/services/enrollment.service";
+import { studentService } from "@/services/student.service";
 import { AuditUserDisplay } from "@/components/shared/audit-user-display";
+import { EnrolledStudentsCard, EnrolledStudentItem } from "@/components/classes/enrolled-students-card";
+import { AddStudentToClassDialog } from "@/components/classes/add-student-to-class-dialog";
 import { Classroom } from "@/models/classroom.model";
 import { StudyPackage } from "@/models/study-package.model";
 import { User } from "@/models/user.model";
+import { Student } from "@/models/student.model";
 import { SchoolHoliday } from "@/models/school-holiday.model";
+import { Branch } from "@/models/branch.model";
+import { branchService } from "@/services/branch.service";
 import {
   calculateClassProgressMetrics,
   calculateClassCapacityMetrics,
@@ -46,6 +52,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   TrendingUp,
+  Building2,
 } from "lucide-react";
 
 export const ClassroomDetailPage: React.FC = () => {
@@ -56,8 +63,11 @@ export const ClassroomDetailPage: React.FC = () => {
   const [classroom, setClassroom] = useState<Classroom | null>(null);
   const [studyPackage, setStudyPackage] = useState<StudyPackage | null>(null);
   const [teacher, setTeacher] = useState<User | null>(null);
+  const [branch, setBranch] = useState<Branch | null>(null);
   const [holidays, setHolidays] = useState<SchoolHoliday[]>([]);
   const [activeEnrollmentCount, setActiveEnrollmentCount] = useState<number>(0);
+  const [enrolledStudents, setEnrolledStudents] = useState<EnrolledStudentItem[]>([]);
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -73,16 +83,28 @@ export const ClassroomDetailPage: React.FC = () => {
 
       setClassroom(cls);
 
-      const [pkg, usr, hols, activeEnrollments] = await Promise.all([
+      const [pkg, usr, hols, activeEnrollments, allStudents, branchData] = await Promise.all([
         cls.packageId ? studyPackageService.getStudyPackageById(cls.packageId) : Promise.resolve(null),
         cls.assignedTeacherId ? userService.getUserById(cls.assignedTeacherId) : Promise.resolve(null),
         schoolHolidayService.getActiveSchoolHolidays(),
         enrollmentService.getActiveEnrollmentsByClassroomId(cls.id),
+        studentService.getStudents(),
+        cls.branchId ? branchService.getBranchById(cls.branchId) : Promise.resolve(null),
       ]);
+
+      const studentMap = new Map<string, Student>(allStudents.map((s) => [s.id, s]));
+      const enrolledItems: EnrolledStudentItem[] = activeEnrollments
+        .map((enr) => {
+          const std = studentMap.get(enr.studentId);
+          return std ? { enrollment: enr, student: std } : null;
+        })
+        .filter((item): item is EnrolledStudentItem => item !== null);
 
       setStudyPackage(pkg);
       setTeacher(usr);
+      setBranch(branchData);
       setHolidays(hols);
+      setEnrolledStudents(enrolledItems);
       setActiveEnrollmentCount(activeEnrollments.length);
     } catch (err) {
       console.error(err);
@@ -152,6 +174,12 @@ export const ClassroomDetailPage: React.FC = () => {
                 {classroom.name}
               </h1>
               <ClassroomStatusBadge status={classroom.status} />
+              {branch && (
+                <Badge variant="outline" className="font-khmer text-xs gap-1 bg-muted/50 border-border">
+                  <Building2 className="h-3 w-3 text-primary" />
+                  <span>{branch.nameKh}</span>
+                </Badge>
+              )}
             </div>
             <p className="font-mono text-xs font-semibold text-primary mt-0.5">
               {classroom.code}
@@ -431,6 +459,18 @@ export const ClassroomDetailPage: React.FC = () => {
         )}
       </div>
 
+      {/* Enrolled Students Roster */}
+      {capacityMetrics && (
+        <EnrolledStudentsCard
+          classroom={classroom}
+          enrolledStudents={enrolledStudents}
+          capacityMetrics={capacityMetrics}
+          isLoading={isLoading}
+          onAddStudent={() => setIsAddStudentOpen(true)}
+          onRefresh={loadData}
+        />
+      )}
+
       {/* Capacity & Notes */}
       <Card className="border-border/80 shadow-xs">
         <CardHeader className="pb-3 border-b border-border/50">
@@ -505,6 +545,14 @@ export const ClassroomDetailPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Student to Class Dialog */}
+      <AddStudentToClassDialog
+        open={isAddStudentOpen}
+        onOpenChange={setIsAddStudentOpen}
+        classroom={classroom}
+        onSuccess={loadData}
+      />
     </div>
   );
 };

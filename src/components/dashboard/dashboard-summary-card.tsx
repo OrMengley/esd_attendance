@@ -97,7 +97,7 @@ export const DashboardSummaryCard: React.FC<DashboardSummaryCardProps> = ({
         <p className="text-xs font-medium text-muted-foreground truncate font-khmer">
           {title}
         </p>
-        <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground font-mono mt-0.5">
+        <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground mt-0.5">
           {value}
         </p>
         {subtitle && (

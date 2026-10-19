@@ -21,6 +21,8 @@ import { Student, StudentStatus } from "@/models/student.model";
 import { Classroom } from "@/models/classroom.model";
 import { Enrollment } from "@/models/enrollment.model";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranch } from "@/contexts/branch-context";
+import { filterStudentsByBranch } from "@/lib/branch-scoping";
 import { toast } from "sonner";
 import {
   UserPlus,
@@ -32,18 +34,23 @@ import {
   CheckCircle2,
   PauseCircle,
   Archive,
+  FileSpreadsheet,
 } from "lucide-react";
+import { ImportStudentsDialog } from "@/components/students/import-students-dialog";
 
 export const StudentsListPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const { currentBranchId, isAllBranches } = useBranch();
+
   const [students, setStudents] = useState<Student[]>([]);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInsertingTest, setIsInsertingTest] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -73,6 +80,19 @@ export const StudentsListPage: React.FC = () => {
     loadData();
   }, [loadData]);
 
+  // Filter classrooms by current branch
+  const scopedClassrooms = useMemo(() => {
+    if (isAllBranches || !currentBranchId) return classrooms;
+    return classrooms.filter((c) => c.branchId === currentBranchId);
+  }, [classrooms, isAllBranches, currentBranchId]);
+
+  // If active class is not in scopedClassrooms, reset selectedClass
+  useEffect(() => {
+    if (selectedClass !== "all" && !scopedClassrooms.some((c) => c.id === selectedClass)) {
+      setSelectedClass("all");
+    }
+  }, [scopedClassrooms, selectedClass]);
+
   // Map of studentId -> active Enrollment
   const activeEnrollmentsMap = useMemo(() => {
     const map: Record<string, Enrollment> = {};
@@ -84,9 +104,14 @@ export const StudentsListPage: React.FC = () => {
     return map;
   }, [enrollments]);
 
+  // Students scoped to current branch (Rule 3: Follow whichever class they are enrolled in or their stored branchId)
+  const scopedStudents = useMemo(() => {
+    return filterStudentsByBranch(students, enrollments, classrooms, currentBranchId);
+  }, [students, enrollments, classrooms, currentBranchId]);
+
   // Filtered students
   const filteredStudents = useMemo(() => {
-    return students.filter((student) => {
+    return scopedStudents.filter((student) => {
       // 1. Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -126,20 +151,18 @@ export const StudentsListPage: React.FC = () => {
         if (student.status !== selectedStatus) {
           return false;
         }
-      } else {
-        // By default, if "all" is selected, we still show all except maybe you want all 3
-        // Show everything including archived when requested
       }
 
       return true;
     });
-  }, [students, searchQuery, selectedClass, selectedStatus, activeEnrollmentsMap]);
+  }, [scopedStudents, searchQuery, selectedClass, selectedStatus, activeEnrollmentsMap]);
 
   // Insert Test Student
   const handleInsertTestStudent = async () => {
     setIsInsertingTest(true);
     try {
-      const result = await studentService.insertTestStudent(user?.id);
+      const targetBranch = (!isAllBranches && currentBranchId) ? currentBranchId : undefined;
+      const result = await studentService.insertTestStudent(user?.id, targetBranch);
       if (result.success && result.student) {
         toast.success(t("students.created"));
         await loadData();
@@ -154,9 +177,10 @@ export const StudentsListPage: React.FC = () => {
   };
 
   // Stats
-  const activeCount = students.filter((s) => s.status === "active").length;
-  const inactiveCount = students.filter((s) => s.status === "inactive").length;
-  const archivedCount = students.filter((s) => s.status === "archived").length;
+  const totalCount = scopedStudents.length;
+  const activeCount = scopedStudents.filter((s) => s.status === "active").length;
+  const inactiveCount = scopedStudents.filter((s) => s.status === "inactive").length;
+  const archivedCount = scopedStudents.filter((s) => s.status === "archived").length;
 
   return (
     <div className="space-y-6">
@@ -182,6 +206,16 @@ export const StudentsListPage: React.FC = () => {
           </Button>
 
           <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsImportDialogOpen(true)}
+            className="text-xs font-khmer h-9 gap-1.5 shadow-2xs border-primary/20 hover:border-primary/40 text-foreground"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span>{t("students.import.button")}</span>
+          </Button>
+
+          <Button
             asChild
             variant="default"
             className="text-xs font-khmer h-9 gap-1.5 shadow-sm"
@@ -202,7 +236,7 @@ export const StudentsListPage: React.FC = () => {
           </div>
           <div>
             <div className="text-xl font-extrabold text-foreground">
-              {students.length}
+              {totalCount}
             </div>
             <div className="text-xs text-muted-foreground font-khmer">
               {t("students.totalStudents")}
@@ -276,7 +310,7 @@ export const StudentsListPage: React.FC = () => {
               </SelectTrigger>
               <SelectContent className="font-khmer max-h-64">
                 <SelectItem value="all">{t("students.allClassrooms")}</SelectItem>
-                {classrooms.map((c) => (
+                {scopedClassrooms.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.code} - {c.name}
                   </SelectItem>
@@ -341,6 +375,14 @@ export const StudentsListPage: React.FC = () => {
           onRefresh={loadData}
         />
       )}
+
+      {/* Excel Import Dialog */}
+      <ImportStudentsDialog
+        open={isImportDialogOpen}
+        onOpenChange={setIsImportDialogOpen}
+        existingStudentCodes={students.map((s) => s.studentCode)}
+        onImportSuccess={loadData}
+      />
     </div>
   );
 };

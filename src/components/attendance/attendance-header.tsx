@@ -192,7 +192,7 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
             className="text-xs font-khmer h-9 sm:h-10 gap-2 border-primary/40 text-primary hover:bg-primary/10 px-4"
           >
             <LockOpen className="h-4 w-4" />
-            <span>{t("attendance.editAttendance", { defaultValue: "កែប្រែវត្តមាន" })}</span>
+            <span>{t("attendance.editAttendance", { defaultValue: "កែប្រែវត្តមានf" })}</span>
           </Button>
         )}
 
@@ -230,11 +230,10 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
             type="button"
             onClick={onSave}
             disabled={isSaveDisabled}
-            className={`text-xs font-khmer h-9 sm:h-10 gap-2 text-white shadow-md px-5 ${
-              isEditing
-                ? "bg-amber-600 hover:bg-amber-700 shadow-amber-600/25"
-                : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25"
-            }`}
+            className={`text-xs font-khmer h-9 sm:h-10 gap-2 text-white shadow-md px-5 ${isEditing
+              ? "bg-amber-600 hover:bg-amber-700 shadow-amber-600/25"
+              : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25"
+              }`}
           >
             {isSaving ? (
               <span>{t("common.saving", { defaultValue: "កំពុងរក្សាទុក..." })}</span>
@@ -243,7 +242,7 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
                 <Save className="h-4 w-4" />
                 <span>
                   {isEditing
-                    ? t("attendance.updateAttendance", { defaultValue: "កែប្រែវត្តមាន" })
+                    ? t("attendance.save", { defaultValue: "រក្សាទុកវត្តមាន" })
                     : t("attendance.save", { defaultValue: "រក្សាទុកវត្តមាន" })}
                 </span>
               </>

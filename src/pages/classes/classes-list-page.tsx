@@ -16,11 +16,14 @@ import {
 import { classroomService } from "@/services/classroom.service";
 import { studyPackageService } from "@/services/study-package.service";
 import { userService } from "@/services/user.service";
+import { branchService } from "@/services/branch.service";
 import { Classroom, ClassroomStatus } from "@/models/classroom.model";
 import { StudyPackage } from "@/models/study-package.model";
 import { User } from "@/models/user.model";
+import { Branch } from "@/models/branch.model";
 import { getScheduleType } from "@/lib/classroom-schedule";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranch } from "@/contexts/branch-context";
 import { toast } from "sonner";
 import {
   Plus,
@@ -34,31 +37,40 @@ export const ClassesListPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { currentBranchId } = useBranch();
 
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [studyPackages, setStudyPackages] = useState<StudyPackage[]>([]);
   const [teachers, setTeachers] = useState<User[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState(currentBranchId || "all");
   const [selectedPackage, setSelectedPackage] = useState("all");
   const [selectedTeacher, setSelectedTeacher] = useState("all");
   const [selectedScheduleType, setSelectedScheduleType] = useState<"all" | "weekday" | "weekend">("all");
   const [selectedStatus, setSelectedStatus] = useState<"all" | ClassroomStatus>("all");
 
+  useEffect(() => {
+    setSelectedBranch(currentBranchId || "all");
+  }, [currentBranchId]);
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [clsList, pkgList, usrList] = await Promise.all([
+      const [clsList, pkgList, usrList, brList] = await Promise.all([
         classroomService.getClassrooms(),
         studyPackageService.getStudyPackages(),
         userService.getTeachers(),
+        branchService.getBranches(),
       ]);
 
       setClassrooms(clsList);
       setStudyPackages(pkgList);
       setTeachers(usrList);
+      setBranches(brList);
     } catch (error) {
       console.error("Failed to load classes data:", error);
       toast.error(t("classes.fetchError"));
@@ -76,6 +88,11 @@ export const ClassesListPage: React.FC = () => {
     return classrooms.filter((cls) => {
       // Status filter
       if (selectedStatus !== "all" && cls.status !== selectedStatus) {
+        return false;
+      }
+
+      // Branch filter
+      if (selectedBranch !== "all" && cls.branchId !== selectedBranch) {
         return false;
       }
 
@@ -208,6 +225,25 @@ export const ClassesListPage: React.FC = () => {
 
           {/* Filter dropdowns */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Branch Filter */}
+            {branches.length > 0 && (
+              <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                <SelectTrigger className="w-[150px] text-xs font-khmer h-9">
+                  <SelectValue placeholder={t("branches.allBranches")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="text-xs font-khmer">
+                    {t("branches.allBranches")}
+                  </SelectItem>
+                  {branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id} className="text-xs font-khmer">
+                      {b.nameKh}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             {/* Package Filter */}
             <Select value={selectedPackage} onValueChange={setSelectedPackage}>
               <SelectTrigger className="w-[160px] text-xs font-khmer h-9">
@@ -352,6 +388,7 @@ export const ClassesListPage: React.FC = () => {
           classrooms={filteredClassrooms}
           studyPackages={studyPackages}
           teachers={teachers}
+          branches={branches}
           onViewDetails={(cls) => navigate(`/classes/${cls.id}`)}
           onEdit={(cls) => navigate(`/classes/${cls.id}/edit`)}
           onToggleStatus={handleToggleStatus}

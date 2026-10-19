@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranch } from "@/contexts/branch-context";
+import { filterUsersByBranch } from "@/lib/branch-scoping";
 import { PageHeader } from "@/components/layout/page-header";
 import { UsersTable } from "@/components/users/users-table";
 import { UserDialog } from "./user-dialog";
@@ -25,6 +27,7 @@ import { UserPlus, Search } from "lucide-react";
 export const UsersPage: React.FC = () => {
   const { t } = useTranslation();
   const { user: currentUser } = useAuth();
+  const { currentBranchId, isAllBranches, branches } = useBranch();
   const navigate = useNavigate();
 
   const [users, setUsers] = useState<User[]>([]);
@@ -154,7 +157,11 @@ export const UsersPage: React.FC = () => {
     }
   };
 
-  const filteredUsers = users.filter((u) => {
+  const scopedUsers = useMemo(() => {
+    return filterUsersByBranch(users, currentBranchId);
+  }, [users, currentBranchId]);
+
+  const filteredUsers = scopedUsers.filter((u: User) => {
     const matchesSearch =
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -230,6 +237,7 @@ export const UsersPage: React.FC = () => {
       <UsersTable
         users={filteredUsers}
         classrooms={classrooms}
+        branches={branches}
         currentUser={currentUser}
         loading={loading}
         onEdit={(user) => {
@@ -251,6 +259,8 @@ export const UsersPage: React.FC = () => {
         userToEdit={userToEdit}
         currentUser={currentUser}
         classrooms={classrooms}
+        branches={branches}
+        defaultBranchId={currentBranchId}
         onSubmit={handleSaveUser}
       />
 

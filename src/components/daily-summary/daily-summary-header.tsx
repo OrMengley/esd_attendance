@@ -96,9 +96,8 @@ export const DailySummaryHeader: React.FC<DailySummaryHeaderProps> = ({
               variant={isToday ? "default" : "ghost"}
               size="sm"
               onClick={handleToday}
-              className={`h-8 px-3 text-xs font-khmer rounded-lg ${
-                isToday ? "bg-primary text-primary-foreground font-bold shadow-xs" : "hover:bg-background"
-              }`}
+              className={`h-8 px-3 text-xs font-khmer rounded-lg ${isToday ? "bg-primary text-primary-foreground font-bold shadow-xs" : "hover:bg-background"
+                }`}
             >
               {t("dailySummary.today", { defaultValue: "ថ្ងៃនេះ" })}
             </Button>

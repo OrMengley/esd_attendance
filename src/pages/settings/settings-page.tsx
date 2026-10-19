@@ -123,7 +123,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-full">
       <PageHeader
         title={t("settings.title")}
         description={t("settings.description")}
@@ -134,8 +134,8 @@ export const SettingsPage: React.FC = () => {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : (
-        <form onSubmit={handleSave} className="space-y-6">
-          <Card className="border-border/80 shadow-sm">
+        <form onSubmit={handleSave} className="gap-4 flex">
+          <Card className="border-border/80 shadow-sm w-1/2">
             <CardHeader>
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <Building2 className="h-5 w-5 text-primary" />
@@ -295,29 +295,31 @@ export const SettingsPage: React.FC = () => {
                   </p>
                 </div>
               </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button
+                  type="submit"
+                  variant="gradient"
+                  disabled={isSaving || isUploading}
+                  className="gap-2 shadow-sm rounded-xl px-6 h-10"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>{t("common.loading")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" />
+                      <span>{t("settings.saveSettings")}</span>
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
-          <div className="flex justify-end gap-3 pt-2">
-            <Button
-              type="submit"
-              variant="gradient"
-              disabled={isSaving || isUploading}
-              className="gap-2 shadow-sm rounded-xl px-6 h-10"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>{t("common.loading")}</span>
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  <span>{t("settings.saveSettings")}</span>
-                </>
-              )}
-            </Button>
-          </div>
+
         </form>
       )}
     </div>

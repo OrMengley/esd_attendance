@@ -13,10 +13,13 @@ import {
   ClassDailyAttendanceSummary,
   DailyClassAttendanceStatus,
 } from "@/lib/daily-attendance-summary";
+import { useBranch } from "@/contexts/branch-context";
 import { toast } from "sonner";
 
 export function useDailyAttendanceSummary(initialDate?: string) {
   const { t } = useTranslation();
+  const { currentBranchId, isAllBranches } = useBranch();
+  const branchId = isAllBranches ? null : currentBranchId;
 
   const [selectedDate, setSelectedDate] = useState<string>(
     initialDate || getCambodiaToday()
@@ -56,7 +59,7 @@ export function useDailyAttendanceSummary(initialDate?: string) {
   const [selectedScheduleType, setSelectedScheduleType] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
 
-  // Load teachers and study packages once
+  // Load teachers and study packages
   useEffect(() => {
     let isMounted = true;
     async function loadMeta() {
@@ -67,7 +70,10 @@ export function useDailyAttendanceSummary(initialDate?: string) {
         ]);
         if (isMounted) {
           const teacherUsers = usersList.filter(
-            (u) => u.role === "teacher" && u.status === "active"
+            (u) =>
+              u.role === "teacher" &&
+              u.status === "active" &&
+              (!branchId || u.branchId === branchId)
           );
           setTeachers(teacherUsers);
           setPackages(packagesList);
@@ -80,14 +86,21 @@ export function useDailyAttendanceSummary(initialDate?: string) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [branchId]);
 
-  // Fetch summary for selected date
-  const fetchSummary = useCallback(async (date: string) => {
+  // Reset selectedTeacherId if outside current branch teachers
+  useEffect(() => {
+    if (selectedTeacherId !== "all" && !teachers.some((t) => t.id === selectedTeacherId)) {
+      setSelectedTeacherId("all");
+    }
+  }, [teachers, selectedTeacherId]);
+
+  // Fetch summary for selected date and branch
+  const fetchSummary = useCallback(async (date: string, bId?: string | null) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await dailyAttendanceSummaryService.getDailySummary(date);
+      const data = await dailyAttendanceSummaryService.getDailySummary(date, bId);
       setSummaryData(data);
     } catch (e: any) {
       console.error("Failed to load daily attendance summary:", e);
@@ -101,12 +114,12 @@ export function useDailyAttendanceSummary(initialDate?: string) {
   }, [t]);
 
   useEffect(() => {
-    fetchSummary(selectedDate);
-  }, [selectedDate, fetchSummary]);
+    fetchSummary(selectedDate, branchId);
+  }, [selectedDate, branchId, fetchSummary]);
 
   const refresh = useCallback(() => {
-    fetchSummary(selectedDate);
-  }, [selectedDate, fetchSummary]);
+    fetchSummary(selectedDate, branchId);
+  }, [selectedDate, branchId, fetchSummary]);
 
   // Compute filtered classes
   const filteredClasses = useMemo(() => {

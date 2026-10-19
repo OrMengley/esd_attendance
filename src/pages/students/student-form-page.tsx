@@ -24,6 +24,7 @@ import { studentService } from "@/services/student.service";
 import { uploadImage } from "@/services/upload.service";
 import { Student, StudentStatus } from "@/models/student.model";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranch } from "@/contexts/branch-context";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -37,6 +38,7 @@ import {
   Camera,
   Loader2,
   CheckCircle2,
+  Building2,
 } from "lucide-react";
 
 interface StudentFormPageProps {
@@ -47,12 +49,17 @@ export const StudentFormPage: React.FC<StudentFormPageProps> = ({ mode }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { currentBranchId, isAllBranches, branches } = useBranch();
   const { id } = useParams<{ id: string }>();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form states
   const [studentCode, setStudentCode] = useState("");
+  const [branchId, setBranchId] = useState<string>(() => {
+    if (!isAllBranches && currentBranchId) return currentBranchId;
+    return branches[0]?.id || "";
+  });
   const [nameKh, setNameKh] = useState("");
   const [nameEn, setNameEn] = useState("");
   const [gender, setGender] = useState<"male" | "female">("male");
@@ -95,8 +102,13 @@ export const StudentFormPage: React.FC<StudentFormPageProps> = ({ mode }) => {
     } else if (mode === "create") {
       // Auto-suggest next student code e.g. STU-100 or auto-generated
       suggestStudentCode();
+      if (!isAllBranches && currentBranchId) {
+        setBranchId(currentBranchId);
+      } else if (branches.length > 0) {
+        setBranchId(branches[0].id);
+      }
     }
-  }, [mode, id]);
+  }, [mode, id, isAllBranches, currentBranchId, branches]);
 
   const suggestStudentCode = async () => {
     try {
@@ -120,6 +132,7 @@ export const StudentFormPage: React.FC<StudentFormPageProps> = ({ mode }) => {
       }
 
       setStudentCode(student.studentCode || "");
+      setBranchId(student.branchId || "");
       setNameKh(student.nameKh || "");
       setNameEn(student.nameEn || "");
       setGender(student.gender || "male");
@@ -208,6 +221,7 @@ export const StudentFormPage: React.FC<StudentFormPageProps> = ({ mode }) => {
     try {
       const studentPayload: Omit<Student, "id" | "createdAt" | "updatedAt"> = {
         studentCode: cleanCode,
+        branchId: branchId || undefined,
         nameKh: cleanNameKh,
         nameEn: nameEn.trim(),
         gender,
@@ -423,7 +437,7 @@ export const StudentFormPage: React.FC<StudentFormPageProps> = ({ mode }) => {
               {/* Basic Fields */}
               <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
                 {/* Student Code */}
-                <div className="space-y-1.5 sm:col-span-2">
+                <div className="space-y-1.5">
                   <Label className="text-xs font-semibold font-khmer flex items-center gap-1">
                     <span>{t("students.studentCode")}</span>
                     <span className="text-rose-500">*</span>
@@ -435,6 +449,27 @@ export const StudentFormPage: React.FC<StudentFormPageProps> = ({ mode }) => {
                     className="font-mono text-xs sm:text-sm h-9 bg-background"
                     required
                   />
+                </div>
+
+                {/* Branch Selection */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold font-khmer flex items-center gap-1">
+                    <Building2 className="h-3.5 w-3.5 text-blue-500" />
+                    <span>{t("branches.branch", { defaultValue: "សាខា" })}</span>
+                    <span className="text-rose-500">*</span>
+                  </Label>
+                  <Select value={branchId} onValueChange={setBranchId} disabled={!isAllBranches}>
+                    <SelectTrigger className="text-xs sm:text-sm h-9 bg-background font-khmer">
+                      <SelectValue placeholder={t("branches.selectBranchPlaceholder", { defaultValue: "ជ្រើសរើសសាខាសាលា..." })} />
+                    </SelectTrigger>
+                    <SelectContent className="font-khmer">
+                      {branches.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.nameKh} ({b.code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Khmer Name */}

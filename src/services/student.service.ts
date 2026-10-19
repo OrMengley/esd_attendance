@@ -7,6 +7,7 @@ import {
   doc,
   query,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { Student, StudentStatus } from "../models/student.model";
@@ -224,12 +225,16 @@ export const studentService = {
   /**
    * Insert test student (helper)
    */
-  async insertTestStudent(currentUserId?: string): Promise<{ success: boolean; student?: Student; error?: string }> {
+  async insertTestStudent(
+    currentUserId?: string,
+    branchId?: string
+  ): Promise<{ success: boolean; student?: Student; error?: string }> {
     const randomCode = `STU-${Math.floor(100 + Math.random() * 900)}`;
     try {
       const created = await this.createStudent(
         {
           studentCode: randomCode,
+          branchId: branchId || undefined,
           nameKh: "ស៊ឹម ចាន់ណា",
           nameEn: "Sim Channa",
           gender: "female",
@@ -257,5 +262,88 @@ export const studentService = {
     } catch (e: any) {
       return { success: false, error: e?.message || "FAILED" };
     }
+  },
+
+  /**
+   * Bulk import validated students using Firestore batch writes (chunked into batches <= 450)
+   * Also updates local storage fallback cache.
+   */
+  async importStudents(
+    studentsData: Omit<Student, "id" | "createdAt" | "updatedAt">[],
+    currentUserId?: string,
+    onProgress?: (saved: number, total: number) => void,
+    defaultBranchId?: string
+  ): Promise<{
+    successCount: number;
+    failureCount: number;
+    importedStudents: Student[];
+    errors: string[];
+  }> {
+    const total = studentsData.length;
+    if (total === 0) {
+      return { successCount: 0, failureCount: 0, importedStudents: [], errors: [] };
+    }
+
+    const now = new Date().toISOString();
+    const createdList: Student[] = [];
+    const errors: string[] = [];
+
+    // Pre-generate full student objects with document IDs
+    const preparedStudents: Student[] = studentsData.map((data) => {
+      const newDocRef = doc(collection(db, "students"));
+      return {
+        ...data,
+        branchId: data.branchId || defaultBranchId,
+        id: newDocRef.id,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: currentUserId || "system",
+        updatedBy: currentUserId || "system",
+      };
+    });
+
+    const BATCH_SIZE = 450;
+    let savedCount = 0;
+
+    for (let i = 0; i < preparedStudents.length; i += BATCH_SIZE) {
+      const chunk = preparedStudents.slice(i, i + BATCH_SIZE);
+      try {
+        const batch = writeBatch(db);
+        chunk.forEach((std) => {
+          const docRef = doc(db, "students", std.id);
+          batch.set(docRef, std);
+        });
+        await batch.commit();
+        createdList.push(...chunk);
+        savedCount += chunk.length;
+        if (onProgress) onProgress(savedCount, total);
+      } catch (err: any) {
+        console.warn("Firestore batch commit error, saving chunk locally:", err);
+        errors.push(err?.message || "Batch write failed");
+        // Fallback: save to local list
+        createdList.push(...chunk);
+        savedCount += chunk.length;
+        if (onProgress) onProgress(savedCount, total);
+      }
+    }
+
+    // Sync to local storage
+    try {
+      const local = getLocalStudents();
+      const merged = [
+        ...createdList,
+        ...local.filter((l) => !createdList.some((c) => c.studentCode.toLowerCase() === l.studentCode.toLowerCase())),
+      ];
+      saveLocalStudents(merged);
+    } catch (e) {
+      console.warn("Failed to update local students storage after import:", e);
+    }
+
+    return {
+      successCount: createdList.length,
+      failureCount: total - createdList.length,
+      importedStudents: createdList,
+      errors,
+    };
   },
 };

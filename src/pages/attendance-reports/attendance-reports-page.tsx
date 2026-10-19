@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranch } from "@/contexts/branch-context";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,17 +42,22 @@ import { Classroom } from "@/models/classroom.model";
 import { StudyPackage } from "@/models/study-package.model";
 import { User } from "@/models/user.model";
 import { MonthlyAttendanceReportData } from "@/models/attendance-report.model";
+import { AttendanceStatus } from "@/models/attendance.model";
 import { getCambodiaToday } from "@/lib/attendance-time-lock";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { MonthlyAttendanceMatrixTable } from "@/components/attendance-reports/monthly-attendance-matrix-table";
+import { AttendanceCorrectionDialog } from "@/components/attendance-corrections/attendance-correction-dialog";
 
 export const AttendanceReportsPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
+  const { currentBranchId, isAllBranches } = useBranch();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const isTeacher = user?.role === "teacher";
+  const isAdmin = user?.role === "super_admin" || user?.role === "admin";
 
   // URL query params fallback
   const queryClassId = searchParams.get("classId");
@@ -77,16 +83,21 @@ export const AttendanceReportsPage: React.FC = () => {
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
+  // Attendance Correction Dialog State
+  const [correctionTarget, setCorrectionTarget] = useState<{
+    attendanceDocId?: string;
+    student: any;
+    date: string;
+    previousStatus: AttendanceStatus | null;
+  } | null>(null);
+  const [isCorrectionOpen, setIsCorrectionOpen] = useState(false);
+
   useEffect(() => {
     setReportLanguage(i18n.language === "km" ? "km" : "en");
   }, [i18n.language]);
 
-  // Load classrooms, packages, teachers
-  useEffect(() => {
-    loadMetadata();
-  }, [user]);
-
-  const loadMetadata = async () => {
+  // Load classrooms, packages, teachers with Branch scoping
+  const loadMetadata = useCallback(async () => {
     setIsLoadingMetadata(true);
     try {
       const [allClasses, allPackages, allUsers] = await Promise.all([
@@ -95,9 +106,13 @@ export const AttendanceReportsPage: React.FC = () => {
         userService.getUsers(),
       ]);
 
-      const accessibleClasses = isTeacher
-        ? allClasses.filter((c) => c.assignedTeacherId === user?.id)
+      const branchScopedClasses = !isAllBranches && currentBranchId
+        ? allClasses.filter((c) => c.branchId === currentBranchId)
         : allClasses;
+
+      const accessibleClasses = isTeacher
+        ? branchScopedClasses.filter((c) => c.assignedTeacherId === user?.id)
+        : branchScopedClasses;
 
       setClassrooms(accessibleClasses);
       setPackages(allPackages);
@@ -105,11 +120,17 @@ export const AttendanceReportsPage: React.FC = () => {
 
       // Auto-select classroom
       if (accessibleClasses.length > 0) {
-        if (queryClassId && accessibleClasses.some((c) => c.id === queryClassId)) {
-          setSelectedClassId(queryClassId);
-        } else if (!selectedClassId) {
-          setSelectedClassId(accessibleClasses[0].id);
-        }
+        setSelectedClassId((prev) => {
+          if (queryClassId && accessibleClasses.some((c) => c.id === queryClassId)) {
+            return queryClassId;
+          }
+          if (!prev || !accessibleClasses.some((c) => c.id === prev)) {
+            return accessibleClasses[0].id;
+          }
+          return prev;
+        });
+      } else {
+        setSelectedClassId("");
       }
     } catch (e) {
       console.error("Failed to load metadata:", e);
@@ -117,40 +138,38 @@ export const AttendanceReportsPage: React.FC = () => {
     } finally {
       setIsLoadingMetadata(false);
     }
-  };
+  }, [isTeacher, user?.id, isAllBranches, currentBranchId, queryClassId, t]);
 
-  // Auto-fetch summary metrics whenever selected class or month changes
   useEffect(() => {
+    loadMetadata();
+  }, [loadMetadata]);
+
+  // Fetch summary report metrics and matrix data
+  const fetchSummary = useCallback(async () => {
     if (!selectedClassId || !selectedMonth) {
       setSummaryReportData(null);
       return;
     }
 
-    let isMounted = true;
-    const fetchSummary = async () => {
-      setIsLoadingSummary(true);
-      try {
-        const data = await attendanceReportService.generateMonthlyReport(
-          selectedClassId,
-          selectedMonth,
-          user?.name
-        );
-        if (isMounted) {
-          setSummaryReportData(data);
-        }
-      } catch (e) {
-        console.error("Failed to load summary metrics:", e);
-        if (isMounted) setSummaryReportData(null);
-      } finally {
-        if (isMounted) setIsLoadingSummary(false);
-      }
-    };
+    setIsLoadingSummary(true);
+    try {
+      const data = await attendanceReportService.generateMonthlyReport(
+        selectedClassId,
+        selectedMonth,
+        user?.name
+      );
+      setSummaryReportData(data);
+    } catch (e) {
+      console.error("Failed to load summary metrics:", e);
+      setSummaryReportData(null);
+    } finally {
+      setIsLoadingSummary(false);
+    }
+  }, [selectedClassId, selectedMonth, user?.name]);
 
+  useEffect(() => {
     fetchSummary();
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedClassId, selectedMonth, user]);
+  }, [fetchSummary]);
 
   const selectedClassroom = useMemo(() => {
     return classrooms.find((c) => c.id === selectedClassId) || null;
@@ -220,7 +239,7 @@ export const AttendanceReportsPage: React.FC = () => {
   const isKm = reportLanguage === "km";
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-6 max-w-full mx-auto">
       {/* Page Header */}
       <PageHeader
         title={t("attendanceReports.title", { defaultValue: "របាយការណ៍វត្តមានប្រចាំខែ" })}
@@ -356,7 +375,7 @@ export const AttendanceReportsPage: React.FC = () => {
             </div>
 
             {/* Primary Action Button */}
-            <div className="flex items-end">
+            {/* <div className="flex items-end">
               <Button
                 onClick={handleViewMonthlyReport}
                 disabled={!selectedClassId || !selectedMonth}
@@ -366,7 +385,7 @@ export const AttendanceReportsPage: React.FC = () => {
                 <span>{t("attendanceReports.viewMonthlyReport", { defaultValue: "មើលរបាយការណ៍ប្រចាំខែ" })}</span>
                 <ArrowRight className="h-4 w-4 ml-auto" />
               </Button>
-            </div>
+            </div> */}
           </div>
 
           {/* 2. Compact Classroom Information Summary */}
@@ -380,7 +399,7 @@ export const AttendanceReportsPage: React.FC = () => {
                   <span className="font-bold text-foreground truncate block">
                     {selectedClassroom.name}
                   </span>
-                  <span className="text-[10px] text-muted-foreground font-mono">
+                  <span className="text-[10px] text-muted-foreground ">
                     {selectedClassroom.code}
                   </span>
                 </div>
@@ -422,7 +441,7 @@ export const AttendanceReportsPage: React.FC = () => {
                   <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
                     {t("classes.time", { defaultValue: "ម៉ោងសិក្សា" })}
                   </span>
-                  <span className="font-semibold font-mono text-foreground flex items-center gap-1 mt-0.5">
+                  <span className="font-semibold  text-foreground flex items-center gap-1 mt-0.5">
                     <Clock className="h-3 w-3 text-primary" />
                     {selectedClassroom.startTime} - {selectedClassroom.endTime}
                   </span>
@@ -432,7 +451,7 @@ export const AttendanceReportsPage: React.FC = () => {
                   <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
                     {t("classes.startDate", { defaultValue: "ថ្ងៃចាប់ផ្តើម" })}
                   </span>
-                  <span className="font-mono text-foreground text-xs mt-0.5 block">
+                  <span className=" text-foreground text-xs mt-0.5 block">
                     {selectedClassroom.startDate || "—"}
                   </span>
                 </div>
@@ -458,120 +477,142 @@ export const AttendanceReportsPage: React.FC = () => {
         </div>
 
         {summaryReportData ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-            {/* Enrolled Students */}
-            <Card className="rounded-2xl border-border/80 shadow-xs bg-card">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-medium text-muted-foreground font-khmer">
-                    {t("attendanceReports.enrolledStudents", { defaultValue: "សិស្សសរុបក្នុងថ្នាក់" })}
-                  </p>
-                  <h3 className="text-xl font-bold text-foreground mt-0.5 font-mono">
-                    {isKm
-                      ? toKhmerNumber(summaryReportData.summaryMetrics.totalEnrolledStudents)
-                      : summaryReportData.summaryMetrics.totalEnrolledStudents}
-                  </h3>
-                </div>
-                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                  <Users className="h-4.5 w-4.5" />
-                </div>
-              </CardContent>
-            </Card>
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+              {/* Enrolled Students */}
+              <Card className="rounded-2xl border-border/80 shadow-xs bg-card">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-medium text-muted-foreground font-khmer">
+                      {t("attendanceReports.enrolledStudents", { defaultValue: "សិស្សសរុបក្នុងថ្នាក់" })}
+                    </p>
+                    <h3 className="text-xl font-bold text-foreground mt-0.5 ">
+                      {isKm
+                        ? toKhmerNumber(summaryReportData.summaryMetrics.totalEnrolledStudents)
+                        : summaryReportData.summaryMetrics.totalEnrolledStudents}
+                    </h3>
+                  </div>
+                  <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                    <Users className="h-4.5 w-4.5" />
+                  </div>
+                </CardContent>
+              </Card>
 
-            {/* Scheduled Sessions */}
-            <Card className="rounded-2xl border-border/80 shadow-xs bg-card">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-medium text-muted-foreground font-khmer">
-                    {t("attendanceReports.scheduledSessions", { defaultValue: "វគ្គសិក្សាគ្រោងទុក" })}
-                  </p>
-                  <h3 className="text-xl font-bold text-foreground mt-0.5 font-mono">
-                    {isKm
-                      ? toKhmerNumber(summaryReportData.summaryMetrics.scheduledSessionsCount)
-                      : summaryReportData.summaryMetrics.scheduledSessionsCount}
-                  </h3>
-                </div>
-                <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600">
-                  <Calendar className="h-4.5 w-4.5" />
-                </div>
-              </CardContent>
-            </Card>
+              {/* Scheduled Sessions */}
+              <Card className="rounded-2xl border-border/80 shadow-xs bg-card">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-medium text-muted-foreground font-khmer">
+                      {t("attendanceReports.scheduledSessions", { defaultValue: "វគ្គសិក្សាគ្រោងទុក" })}
+                    </p>
+                    <h3 className="text-xl font-bold text-foreground mt-0.5 ">
+                      {isKm
+                        ? toKhmerNumber(summaryReportData.summaryMetrics.scheduledSessionsCount)
+                        : summaryReportData.summaryMetrics.scheduledSessionsCount}
+                    </h3>
+                  </div>
+                  <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600">
+                    <Calendar className="h-4.5 w-4.5" />
+                  </div>
+                </CardContent>
+              </Card>
 
-            {/* Recorded Sessions */}
-            <Card className="rounded-2xl border-border/80 shadow-xs bg-card">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-medium text-muted-foreground font-khmer">
-                    {t("attendanceReports.recordedSessions", { defaultValue: "វគ្គបានកត់វត្តមាន" })}
-                  </p>
-                  <h3 className="text-xl font-bold text-foreground mt-0.5 font-mono">
-                    {isKm
-                      ? toKhmerNumber(summaryReportData.summaryMetrics.recordedSessionsCount)
-                      : summaryReportData.summaryMetrics.recordedSessionsCount}
-                  </h3>
-                </div>
-                <div className="h-9 w-9 rounded-xl bg-indigo-500/10 flex items-center justify-center text-primary">
-                  <CheckCircle2 className="h-4.5 w-4.5" />
-                </div>
-              </CardContent>
-            </Card>
+              {/* Recorded Sessions */}
+              <Card className="rounded-2xl border-border/80 shadow-xs bg-card">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-medium text-muted-foreground font-khmer">
+                      {t("attendanceReports.recordedSessions", { defaultValue: "វគ្គបានកត់វត្តមាន" })}
+                    </p>
+                    <h3 className="text-xl font-bold text-foreground mt-0.5 ">
+                      {isKm
+                        ? toKhmerNumber(summaryReportData.summaryMetrics.recordedSessionsCount)
+                        : summaryReportData.summaryMetrics.recordedSessionsCount}
+                    </h3>
+                  </div>
+                  <div className="h-9 w-9 rounded-xl bg-indigo-500/10 flex items-center justify-center text-primary">
+                    <CheckCircle2 className="h-4.5 w-4.5" />
+                  </div>
+                </CardContent>
+              </Card>
 
-            {/* Overall Present */}
-            <Card className="rounded-2xl border-border/80 shadow-xs bg-card">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-medium text-muted-foreground font-khmer">
-                    {t("attendanceReports.present", { defaultValue: "វត្តមាន (P)" })}
-                  </p>
-                  <h3 className="text-xl font-bold text-emerald-600 mt-0.5 font-mono">
-                    {isKm
-                      ? toKhmerNumber(summaryReportData.summaryMetrics.totalPresent)
-                      : summaryReportData.summaryMetrics.totalPresent}
-                  </h3>
-                </div>
-                <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-                  <CheckCircle2 className="h-4.5 w-4.5" />
-                </div>
-              </CardContent>
-            </Card>
+              {/* Overall Present */}
+              <Card className="rounded-2xl border-border/80 shadow-xs bg-card">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-medium text-muted-foreground font-khmer">
+                      {t("attendanceReports.present", { defaultValue: "វត្តមាន (P)" })}
+                    </p>
+                    <h3 className="text-xl font-bold text-emerald-600 mt-0.5 ">
+                      {isKm
+                        ? toKhmerNumber(summaryReportData.summaryMetrics.totalPresent)
+                        : summaryReportData.summaryMetrics.totalPresent}
+                    </h3>
+                  </div>
+                  <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                    <CheckCircle2 className="h-4.5 w-4.5" />
+                  </div>
+                </CardContent>
+              </Card>
 
-            {/* Overall Absent */}
-            <Card className="rounded-2xl border-border/80 shadow-xs bg-card">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-medium text-muted-foreground font-khmer">
-                    {t("attendanceReports.absent", { defaultValue: "អវត្តមាន (A)" })}
-                  </p>
-                  <h3 className="text-xl font-bold text-rose-600 mt-0.5 font-mono">
-                    {isKm
-                      ? toKhmerNumber(summaryReportData.summaryMetrics.totalAbsent)
-                      : summaryReportData.summaryMetrics.totalAbsent}
-                  </h3>
-                </div>
-                <div className="h-9 w-9 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-600">
-                  <XCircle className="h-4.5 w-4.5" />
-                </div>
-              </CardContent>
-            </Card>
+              {/* Overall Absent */}
+              <Card className="rounded-2xl border-border/80 shadow-xs bg-card">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-medium text-muted-foreground font-khmer">
+                      {t("attendanceReports.absent", { defaultValue: "អវត្តមាន (A)" })}
+                    </p>
+                    <h3 className="text-xl font-bold text-rose-600 mt-0.5 ">
+                      {isKm
+                        ? toKhmerNumber(summaryReportData.summaryMetrics.totalAbsent)
+                        : summaryReportData.summaryMetrics.totalAbsent}
+                    </h3>
+                  </div>
+                  <div className="h-9 w-9 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-600">
+                    <XCircle className="h-4.5 w-4.5" />
+                  </div>
+                </CardContent>
+              </Card>
 
-            {/* Overall Attendance Rate */}
-            <Card className="rounded-2xl border-border/80 shadow-xs bg-linear-to-br from-primary/5 to-brand-gold/10">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-medium text-muted-foreground font-khmer">
-                    {t("attendanceReports.attendanceRate", { defaultValue: "អត្រាវត្តមានសរុប" })}
-                  </p>
-                  <h3 className="text-xl font-extrabold text-primary mt-0.5 font-mono">
-                    {isKm
-                      ? `${toKhmerNumber(summaryReportData.summaryMetrics.overallAttendanceRate)}%`
-                      : `${summaryReportData.summaryMetrics.overallAttendanceRate}%`}
-                  </h3>
-                </div>
-                <div className="h-9 w-9 rounded-xl bg-brand-gold/20 flex items-center justify-center text-amber-700">
-                  <Sparkles className="h-4.5 w-4.5" />
-                </div>
-              </CardContent>
-            </Card>
+              {/* Overall Attendance Rate */}
+              <Card className="rounded-2xl border-border/80 shadow-xs bg-linear-to-br from-primary/5 to-brand-gold/10">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-medium text-muted-foreground font-khmer">
+                      {t("attendanceReports.attendanceRate", { defaultValue: "អត្រាវត្តមានសរុប" })}
+                    </p>
+                    <h3 className="text-xl font-extrabold text-primary mt-0.5 ">
+                      {isKm
+                        ? `${toKhmerNumber(summaryReportData.summaryMetrics.overallAttendanceRate)}%`
+                        : `${summaryReportData.summaryMetrics.overallAttendanceRate}%`}
+                    </h3>
+                  </div>
+                  <div className="h-9 w-9 rounded-xl bg-brand-gold/20 flex items-center justify-center text-amber-700">
+                    <Sparkles className="h-4.5 w-4.5" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Monthly Attendance Matrix Table */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-sm font-bold font-khmer text-foreground">
+                  {isKm
+                    ? `តារាងវត្តមានលម្អិតសម្រាប់ខែ ${summaryReportData.monthNameKm}`
+                    : `Monthly Attendance Details for ${summaryReportData.monthNameEn}`}
+                </h3>
+              </div>
+              <MonthlyAttendanceMatrixTable
+                reportData={summaryReportData}
+                language={reportLanguage}
+                isAdmin={isAdmin}
+                onCorrectRecord={(target) => {
+                  setCorrectionTarget(target);
+                  setIsCorrectionOpen(true);
+                }}
+              />
+            </div>
           </div>
         ) : (
           <Card className="border border-dashed border-border rounded-2xl bg-card/60 p-8 text-center">
@@ -594,45 +635,22 @@ export const AttendanceReportsPage: React.FC = () => {
         )}
       </div>
 
-      {/* 4. Action CTA Card */}
-      {summaryReportData && (
-        <Card className="border border-primary/20 shadow-xs rounded-2xl bg-linear-to-r from-primary/5 via-background to-brand-gold/5 p-6">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="space-y-1 text-center sm:text-left">
-              <h4 className="text-base font-bold font-khmer text-foreground">
-                {isKm
-                  ? `របាយការណ៍ពេញលេញសម្រាប់ខែ ${summaryReportData.monthNameKm}`
-                  : `Full Monthly Report for ${summaryReportData.monthNameEn}`}
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                {t("attendanceReports.ctaDescription", {
-                  defaultValue: "ចូលទៅកាន់ផ្ទាំងរបាយការណ៍ពេញលេញ ដើម្បីពិនិត្យមើលតារាងវត្តមានតាមថ្ងៃ និងបោះពុម្ពជាទម្រង់ Landscape PDF។",
-                })}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 shrink-0">
-              <Button
-                variant="outline"
-                onClick={handleExportExcel}
-                disabled={isExportingExcel}
-                className="gap-1.5 h-10 rounded-xl font-medium"
-              >
-                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                <span>{t("attendanceReports.exportExcel", { defaultValue: "ទាញយក Excel" })}</span>
-              </Button>
-
-              <Button
-                onClick={handleViewMonthlyReport}
-                className="gap-2 h-10 px-5 rounded-xl bg-[#1E347B] hover:bg-[#263E89] text-white font-bold shadow-md shadow-primary/20"
-              >
-                <Eye className="h-4 w-4 text-[#F3B51B]" />
-                <span>{t("attendanceReports.viewMonthlyReport", { defaultValue: "មើលរបាយការណ៍ប្រចាំខែ" })}</span>
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </Card>
+      {/* Attendance Correction Dialog */}
+      {correctionTarget && selectedClassId && isAdmin && (
+        <AttendanceCorrectionDialog
+          open={isCorrectionOpen}
+          onOpenChange={setIsCorrectionOpen}
+          attendanceDocId={correctionTarget.attendanceDocId}
+          attendanceId={correctionTarget.attendanceDocId}
+          classroomId={selectedClassId}
+          studentId={correctionTarget.student?.id || ""}
+          attendanceDate={correctionTarget.date}
+          previousStatus={correctionTarget.previousStatus}
+          student={correctionTarget.student}
+          onSuccess={() => {
+            fetchSummary();
+          }}
+        />
       )}
     </div>
   );
