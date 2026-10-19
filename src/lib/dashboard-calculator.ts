@@ -28,6 +28,7 @@ export interface CalculateDashboardParams {
   students: Student[];
   attendance: Attendance[];
   holidays: SchoolHoliday[];
+  branchId?: string | null;
   currentDateTime: {
     dateStr: string;
     timeStr: string;
@@ -40,15 +41,31 @@ export interface CalculateDashboardParams {
 export function calculateDashboardData(params: CalculateDashboardParams): DashboardData {
   const {
     user,
-    classrooms,
+    classrooms: rawClassrooms,
     packages,
-    users,
-    enrollments,
+    users: rawUsers,
+    enrollments: rawEnrollments,
     students,
     attendance,
     holidays,
+    branchId,
     currentDateTime,
   } = params;
+
+  // Branch Scoping: filter classrooms, enrollments, and users by branch if specified
+  const classrooms = (branchId && branchId !== "all")
+    ? rawClassrooms.filter((c) => c.branchId === branchId)
+    : rawClassrooms;
+
+  const branchClassIds = new Set(classrooms.map((c) => c.id));
+
+  const enrollments = (branchId && branchId !== "all")
+    ? rawEnrollments.filter((e) => branchClassIds.has(e.classroomId))
+    : rawEnrollments;
+
+  const users = (branchId && branchId !== "all")
+    ? rawUsers.filter((u) => u.role !== "teacher" || u.branchId === branchId)
+    : rawUsers;
 
   const cambodiaToday = currentDateTime.dateStr;
   const cambodiaNow = currentDateTime.timeStr;

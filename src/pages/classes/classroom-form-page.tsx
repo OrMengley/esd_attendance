@@ -19,10 +19,12 @@ import { classroomService } from "@/services/classroom.service";
 import { studyPackageService } from "@/services/study-package.service";
 import { userService } from "@/services/user.service";
 import { schoolHolidayService } from "@/services/school-holiday.service";
+import { branchService } from "@/services/branch.service";
 import { Classroom, ClassroomStatus } from "@/models/classroom.model";
 import { StudyPackage } from "@/models/study-package.model";
 import { User } from "@/models/user.model";
 import { SchoolHoliday } from "@/models/school-holiday.model";
+import { Branch } from "@/models/branch.model";
 import {
   calculateSessionMinutes,
   calculateHoursPerWeek,
@@ -32,6 +34,7 @@ import {
   getScheduleType,
 } from "@/lib/classroom-schedule";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranch } from "@/contexts/branch-context";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -58,12 +61,14 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { currentBranchId } = useBranch();
 
   const isEditMode = explicitMode ? explicitMode === "edit" : Boolean(id);
 
   // Data states
   const [studyPackages, setStudyPackages] = useState<StudyPackage[]>([]);
   const [teachers, setTeachers] = useState<User[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [activeHolidays, setActiveHolidays] = useState<SchoolHoliday[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,6 +77,7 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [packageId, setPackageId] = useState("");
+  const [branchId, setBranchId] = useState("");
   const [assignedTeacherId, setAssignedTeacherId] = useState("");
   const [scheduleType, setScheduleType] = useState<"weekday" | "weekend">("weekday");
   const [startTime, setStartTime] = useState("07:00");
@@ -88,15 +94,28 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
   const loadInitial = useCallback(async () => {
     setIsLoadingData(true);
     try {
-      const [pkgs, usrs, holidays] = await Promise.all([
+      const [pkgs, usrs, holidays, brList] = await Promise.all([
         studyPackageService.getStudyPackages(),
         userService.getTeachers(),
         schoolHolidayService.getActiveSchoolHolidays(),
+        branchService.getActiveBranches(),
       ]);
+
+      let userBranches = brList;
+      if (user?.role !== "super_admin") {
+        userBranches = brList.filter((b) => b.id === user?.branchId);
+        if (userBranches.length === 0 && user?.branchId) {
+          const singleBranch = await branchService.getBranchById(user.branchId);
+          if (singleBranch) {
+            userBranches = [singleBranch];
+          }
+        }
+      }
 
       setStudyPackages(pkgs);
       setTeachers(usrs);
       setActiveHolidays(holidays);
+      setBranches(userBranches);
 
       if (isEditMode && id) {
         const existingClass = await classroomService.getClassroomById(id);
@@ -104,6 +123,7 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
           setCode(existingClass.code || "");
           setName(existingClass.name || "");
           setPackageId(existingClass.packageId || "");
+          setBranchId(existingClass.branchId || (user?.role !== "super_admin" ? (user?.branchId || "") : ""));
           setAssignedTeacherId(existingClass.assignedTeacherId || "");
 
           const sType = getScheduleType(existingClass.scheduleDays);
@@ -124,7 +144,17 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
         const defaultPkg = pkgs.find((p) => p.status === "active") || pkgs[0];
         if (defaultPkg) setPackageId(defaultPkg.id);
 
-        const defaultTeacher = usrs.find((u) => u.status === "active") || usrs[0];
+        const targetBranchId = user?.role !== "super_admin"
+          ? (user?.branchId || "")
+          : (currentBranchId && currentBranchId !== "all" ? currentBranchId : (userBranches[0]?.id || ""));
+
+        if (targetBranchId) setBranchId(targetBranchId);
+
+        const availableTeachers = targetBranchId
+          ? usrs.filter((u) => !u.branchId || u.branchId === targetBranchId)
+          : usrs;
+
+        const defaultTeacher = availableTeachers.find((u) => u.status === "active") || usrs.find((u) => u.status === "active") || usrs[0];
         if (defaultTeacher) setAssignedTeacherId(defaultTeacher.id);
       }
     } catch (err) {
@@ -133,7 +163,7 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
     } finally {
       setIsLoadingData(false);
     }
-  }, [isEditMode, id, navigate, t]);
+  }, [isEditMode, id, navigate, t, user, currentBranchId]);
 
   useEffect(() => {
     loadInitial();
@@ -165,6 +195,12 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
     () => teachers.find((u) => u.id === assignedTeacherId),
     [teachers, assignedTeacherId]
   );
+
+  const selectableTeachers = useMemo(() => {
+    const targetBranch = branchId || (user?.role !== "super_admin" ? user?.branchId : undefined);
+    if (!targetBranch) return teachers;
+    return teachers.filter((t) => !t.branchId || t.branchId === targetBranch);
+  }, [teachers, branchId, user]);
 
   const sessionMinutes = useMemo(
     () => calculateSessionMinutes(startTime, endTime),
@@ -218,6 +254,7 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
         code: cleanCode,
         name: cleanName,
         packageId,
+        branchId: branchId || undefined,
         assignedTeacherId,
         scheduleDays,
         startTime,
@@ -265,7 +302,7 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b">
         <div className="flex items-center gap-3">
@@ -357,7 +394,7 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="class-package" className="text-xs font-khmer">
                   {t("classes.package")} <span className="text-destructive">*</span>
@@ -375,6 +412,34 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
                   </SelectContent>
                 </Select>
               </div>
+              {user?.role == "super_admin" &&
+                <div className="space-y-1.5">
+                  <Label htmlFor="class-branch" className="text-xs font-khmer">
+                    {t("branches.branch")}
+                  </Label>
+                  <Select
+                    value={branchId || "none"}
+                    onValueChange={(val) => setBranchId(val === "none" ? "" : val)}
+                    disabled={user?.role !== "super_admin"}
+                  >
+                    <SelectTrigger id="class-branch" className="text-xs font-khmer">
+                      <SelectValue placeholder={t("branches.selectBranchPlaceholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {user?.role === "super_admin" && (
+                        <SelectItem value="none" className="text-xs font-khmer">
+                          {t("common.none", { defaultValue: "មិនមាន" })}
+                        </SelectItem>
+                      )}
+                      {branches.map((b) => (
+                        <SelectItem key={b.id} value={b.id} className="text-xs font-khmer">
+                          {b.nameKh} ({b.code}){b.isMain ? " ★" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              }
 
               <div className="space-y-1.5">
                 <Label htmlFor="class-status" className="text-xs font-khmer">
@@ -751,7 +816,7 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
       <TeacherSelectionDialog
         open={isTeacherDialogOpen}
         onOpenChange={setIsTeacherDialogOpen}
-        teachers={teachers}
+        teachers={selectableTeachers}
         selectedTeacherId={assignedTeacherId}
         onSelect={(teacher) => setAssignedTeacherId(teacher.id)}
       />

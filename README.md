@@ -594,3 +594,34 @@ npm run preview
 
 គម្រោងនេះត្រូវបានបង្កើតឡើងសម្រាប់គោលបំណងគ្រប់គ្រងវត្តមានសាលារៀន (School Attendance Management System)។  
 រក្សាសិទ្ធិគ្រប់យ៉ាង © 2026 ESD Attendance System។
+
+This bundle adds reusable AI instructions and workflow prompts tailored to the supplied `src/` tree.
+
+## Contents
+- `AGENTS.md` — shared project-wide instructions
+- `docs/PROJECT.md` — product and feature overview
+- `docs/ARCHITECTURE.md` — observed code organization and dependency guidance
+- `docs/DESIGN-SYSTEM.md` — UI/UX rules aligned to current tokens and components
+- `docs/DEVELOPMENT.md` — safe development loop and verification notes
+- `docs/ROADMAP.md` — suggested maintenance sequence and planning templates
+- `docs/SECURITY-REVIEW.md` — security areas to verify, not assumed vulnerabilities
+- `.ai/README.md` — how to use the portable workflows
+- `.ai/commands/` — plan, implement, review, debug, test, and UX review workflows
+- `docs/plans/` — destination for future feature plans
+
+## Install
+1. Back up or commit your current project first.
+2. Extract this ZIP into the **project root**, the same directory as `package.json` (not inside `src/`).
+3. If a root `AGENTS.md` or any docs already exist, merge carefully rather than overwriting useful project-specific content.
+4. Open the project in your coding agent.
+5. Start by asking it to read `AGENTS.md`, `docs/PROJECT.md`, and `.ai/README.md` and verify these notes against the full repository.
+
+## Use a Workflow
+Example prompt:
+
+> Read `AGENTS.md`, `docs/PROJECT.md`, `docs/ARCHITECTURE.md`, and `.ai/commands/plan.md`. Plan the requested student-attendance change and save the plan under `docs/plans/`. Do not modify application code yet.
+
+These workflow files are portable prompt templates. They do not automatically register slash commands in all coding tools. To get native commands such as `/plan`, adapt them to the command/skill mechanism of your selected agent.
+
+## Important Scope Note
+The uploaded archive contained only `src/`, not the complete repository configuration. These docs are based on observed source code. Verify scripts, dependency versions, Firebase rules/indexes, tests, and deployment settings in the full project before relying on them.

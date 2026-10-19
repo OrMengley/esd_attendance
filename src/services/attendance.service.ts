@@ -5,6 +5,7 @@ import {
   doc,
   query,
   where,
+  limit,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
@@ -148,6 +149,31 @@ export const attendanceService = {
     classroomId: string
   ): Promise<Attendance[]> {
     return this.getAttendanceByClassAndDate(classroomId, date);
+  },
+
+  /**
+   * Check whether a student has any recorded attendance in a specific classroom
+   */
+  async hasAttendanceRecords(
+    studentId: string,
+    classroomId: string
+  ): Promise<boolean> {
+    try {
+      const q = query(
+        collection(db, "attendance"),
+        where("studentId", "==", studentId),
+        where("classroomId", "==", classroomId),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) return true;
+    } catch (e) {
+      console.warn("Firestore hasAttendanceRecords fallback to local:", e);
+    }
+    const local = getLocalAttendance();
+    return local.some(
+      (a) => a.studentId === studentId && a.classroomId === classroomId
+    );
   },
 
   /**

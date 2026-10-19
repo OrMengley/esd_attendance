@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Users,
   School,
+  Building2,
   ClipboardCheck,
   History,
   UserCog,
@@ -27,6 +28,7 @@ import { useSchoolSettings } from "@/hooks/use-school-settings";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { BranchSwitcher } from "./branch-switcher";
 import { cn } from "@/lib/utils";
 
 interface AppSidebarProps {
@@ -50,108 +52,166 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
   const isTeacher = user?.role === "teacher";
 
-  const navItems = [
+  interface NavItem {
+    title: string;
+    path: string;
+    icon: React.ComponentType<{ className?: string }>;
+    roles: string[];
+  }
+
+  interface NavSection {
+    titleKey: string;
+    defaultTitle: string;
+    items: NavItem[];
+  }
+
+  const navSections: NavSection[] = [
     {
-      title: t("sidebar.dashboard"),
-      path: "/dashboard",
-      icon: LayoutDashboard,
-      roles: ["super_admin", "admin", "teacher"],
+      titleKey: "sidebar.sectionDashboard",
+      defaultTitle: "Dashboard",
+      items: [
+        {
+          title: t("sidebar.dashboard"),
+          path: "/dashboard",
+          icon: LayoutDashboard,
+          roles: ["super_admin", "admin", "teacher"],
+        },
+      ],
     },
     {
-      title: t("sidebar.students"),
-      path: "/students",
-      icon: Users,
-      roles: ["super_admin", "admin"],
+      titleKey: "sidebar.sectionAcademic",
+      defaultTitle: "Academic",
+      items: [
+        {
+          title: t("sidebar.classes"),
+          path: "/classes",
+          icon: School,
+          roles: ["super_admin", "admin"],
+        },
+        {
+          title: t("sidebar.packages"),
+          path: "/packages",
+          icon: Layers,
+          roles: ["super_admin", "admin"],
+        },
+        {
+          title: t("sidebar.branches", { defaultValue: "សាខាសាលា" }),
+          path: "/branches",
+          icon: Building2,
+          roles: ["super_admin"],
+        },
+        {
+          title: t("sidebar.holidays", { defaultValue: "ថ្ងៃឈប់សម្រាក" }),
+          path: "/holidays",
+          icon: Palmtree,
+          roles: ["super_admin", "admin"],
+        },
+      ],
     },
     {
-      title: t("sidebar.packages"),
-      path: "/packages",
-      icon: Layers,
-      roles: ["super_admin", "admin"],
+      titleKey: "sidebar.sectionStudentsAttendance",
+      defaultTitle: "Students & Attendance",
+      items: [
+        {
+          title: t("sidebar.students"),
+          path: "/students",
+          icon: Users,
+          roles: ["super_admin", "admin"],
+        },
+        {
+          title: t("sidebar.enrollments", { defaultValue: "ការចុះឈ្មោះចូលរៀន" }),
+          path: "/enrollments",
+          icon: UserCheck,
+          roles: ["super_admin", "admin"],
+        },
+        {
+          title: t("sidebar.attendance"),
+          path: "/attendance",
+          icon: ClipboardCheck,
+          roles: ["super_admin", "admin", "teacher"],
+        },
+        {
+          title: t("sidebar.dailySummary", { defaultValue: "សង្ខេបប្រចាំថ្ងៃ" }),
+          path: "/daily-attendance-summary",
+          icon: CalendarCheck,
+          roles: ["super_admin", "admin"],
+        },
+        {
+          title: t("sidebar.attendanceCorrections", { defaultValue: "កែប្រែវត្តមាន" }),
+          path: "/attendance-corrections",
+          icon: Edit3,
+          roles: ["super_admin", "admin"],
+        },
+        {
+          title: t("sidebar.attendanceAuditLogs", { defaultValue: "កំណត់ហេតុកែប្រែវត្តមាន" }),
+          path: "/attendance-audit-logs",
+          icon: ShieldCheck,
+          roles: ["super_admin", "admin"],
+        },
+        {
+          title: t("sidebar.attendanceHistory"),
+          path: "/attendance-history",
+          icon: History,
+          roles: ["super_admin", "admin", "teacher"],
+        },
+      ],
     },
     {
-      title: t("sidebar.classes"),
-      path: "/classes",
-      icon: School,
-      roles: ["super_admin", "admin"],
+      titleKey: "sidebar.sectionReports",
+      defaultTitle: "Reports",
+      items: [
+        {
+          title: t("sidebar.attendanceReports", { defaultValue: "របាយការណ៍វត្តមាន" }),
+          path: "/attendance-reports",
+          icon: FileSpreadsheet,
+          roles: ["super_admin", "admin", "teacher"],
+        },
+        {
+          title: t("sidebar.studentAttendance", { defaultValue: "វត្តមានតាមសិស្ស" }),
+          path: "/student-attendance",
+          icon: UserCheck,
+          roles: ["super_admin", "admin", "teacher"],
+        },
+        {
+          title: t("sidebar.absenceLateReport", { defaultValue: "អវត្តមាន & មកយឺត" }),
+          path: "/absence-late-report",
+          icon: UserX,
+          roles: ["super_admin", "admin"],
+        },
+        {
+          title: t("sidebar.classProgressReport", { defaultValue: "វឌ្ឍនភាពថ្នាក់រៀន" }),
+          path: "/class-progress-report",
+          icon: TrendingUp,
+          roles: ["super_admin", "admin"],
+        },
+      ],
     },
     {
-      title: t("sidebar.holidays", { defaultValue: "ថ្ងៃឈប់សម្រាក" }),
-      path: "/holidays",
-      icon: Palmtree,
-      roles: ["super_admin", "admin"],
-    },
-    {
-      title: t("sidebar.attendance"),
-      path: "/attendance",
-      icon: ClipboardCheck,
-      roles: ["super_admin", "admin", "teacher"],
-    },
-    {
-      title: t("sidebar.dailySummary", { defaultValue: "សង្ខេបប្រចាំថ្ងៃ" }),
-      path: "/daily-attendance-summary",
-      icon: CalendarCheck,
-      roles: ["super_admin", "admin"],
-    },
-    {
-      title: t("sidebar.attendanceCorrections", { defaultValue: "កែប្រែវត្តមាន" }),
-      path: "/attendance-corrections",
-      icon: Edit3,
-      roles: ["super_admin", "admin"],
-    },
-    {
-      title: t("sidebar.attendanceAuditLogs", { defaultValue: "កំណត់ហេតុកែប្រែវត្តមាន" }),
-      path: "/attendance-audit-logs",
-      icon: ShieldCheck,
-      roles: ["super_admin", "admin"],
-    },
-    {
-      title: t("sidebar.attendanceHistory"),
-      path: "/attendance-history",
-      icon: History,
-      roles: ["super_admin", "admin", "teacher"],
-    },
-    {
-      title: t("sidebar.attendanceReports", { defaultValue: "របាយការណ៍វត្តមាន" }),
-      path: "/attendance-reports",
-      icon: FileSpreadsheet,
-      roles: ["super_admin", "admin", "teacher"],
-    },
-    {
-      title: t("sidebar.studentAttendance", { defaultValue: "វត្តមានតាមសិស្ស" }),
-      path: "/student-attendance",
-      icon: UserCheck,
-      roles: ["super_admin", "admin", "teacher"],
-    },
-    {
-      title: t("sidebar.absenceLateReport", { defaultValue: "អវត្តមាន & មកយឺត" }),
-      path: "/absence-late-report",
-      icon: UserX,
-      roles: ["super_admin", "admin"],
-    },
-    {
-      title: t("sidebar.classProgressReport", { defaultValue: "វឌ្ឍនភាពថ្នាក់រៀន" }),
-      path: "/class-progress-report",
-      icon: TrendingUp,
-      roles: ["super_admin", "admin"],
-    },
-    {
-      title: t("sidebar.users"),
-      path: "/users",
-      icon: UserCog,
-      roles: ["super_admin", "admin"],
-    },
-    {
-      title: t("sidebar.settings"),
-      path: "/settings",
-      icon: Settings,
-      roles: ["super_admin", "admin"],
+      titleKey: "sidebar.sectionSystem",
+      defaultTitle: "System & Settings",
+      items: [
+        {
+          title: t("sidebar.users"),
+          path: "/users",
+          icon: UserCog,
+          roles: ["super_admin", "admin"],
+        },
+        {
+          title: t("sidebar.settings"),
+          path: "/settings",
+          icon: Settings,
+          roles: ["super_admin", "admin"],
+        },
+      ],
     },
   ];
 
-  const allowedNavItems = navItems.filter(
-    (item) => !user || item.roles.includes(user.role)
-  );
+  const allowedSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => !user || item.roles.includes(user.role)),
+    }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <aside
@@ -213,55 +273,65 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         )}
       </div>
 
-      {/* Navigation List */}
-      <div className={cn("flex-1 overflow-y-auto py-4 space-y-1.5", collapsed ? "px-2" : "px-3")}>
-        {!collapsed && (
-          <div className="px-3 py-1 text-[11px] font-semibold text-white/60 uppercase tracking-wider">
-            {isTeacher ? t("sidebar.teacherMenu") : t("sidebar.mainMenu")}
-          </div>
-        )}
+      {/* Branch Switcher (Top of Sidebar) */}
+      {user?.role == "super_admin" &&
+        <BranchSwitcher collapsed={collapsed} />}
 
-        {allowedNavItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center rounded-xl text-sm font-medium transition-all group relative",
-                  collapsed
-                    ? "justify-center w-11 h-11 mx-auto"
-                    : "px-3 py-2.5 w-full",
-                  isActive
-                    ? "bg-[#F3B51B] text-[#16213D] font-bold shadow-md shadow-amber-950/20"
-                    : "text-white/80 hover:bg-[#3D58AE] hover:text-white"
-                )
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon
-                    className={cn(
-                      "h-5 w-5 shrink-0 transition-transform group-hover:scale-110",
-                      isActive ? "text-[#16213D]" : "text-white/70 group-hover:text-white"
-                    )}
-                  />
-                  {!collapsed && (
-                    <span className="truncate text-xs font-semibold ml-3">
-                      {item.title}
-                    </span>
+      {/* Navigation List */}
+      <div className={cn("flex-1 overflow-y-auto py-3 space-y-4", collapsed ? "px-2" : "px-3")}>
+        {allowedSections.map((section, sectionIdx) => (
+          <div key={section.titleKey} className="space-y-1">
+            {!collapsed ? (
+              <div className="px-3 pt-2 pb-1 text-[10px] font-bold text-white/50 uppercase tracking-wider font-khmer">
+                {t(section.titleKey, { defaultValue: section.defaultTitle })}
+              </div>
+            ) : (
+              sectionIdx > 0 && <div className="my-2 border-t border-white/10" />
+            )}
+
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center rounded-xl text-sm font-medium transition-all group relative",
+                      collapsed
+                        ? "justify-center w-11 h-11 mx-auto"
+                        : "px-3 py-2 w-full",
+                      isActive
+                        ? "bg-[#F3B51B] text-[#16213D] font-bold shadow-md shadow-amber-950/20"
+                        : "text-white/80 hover:bg-[#3D58AE] hover:text-white"
+                    )
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <Icon
+                        className={cn(
+                          "h-5 w-5 shrink-0 transition-transform group-hover:scale-110",
+                          isActive ? "text-[#16213D]" : "text-white/70 group-hover:text-white"
+                        )}
+                      />
+                      {!collapsed && (
+                        <span className="truncate text-xs font-semibold ml-3 font-khmer">
+                          {item.title}
+                        </span>
+                      )}
+                      {collapsed && (
+                        <div className="absolute left-full ml-3 hidden rounded-lg bg-[#16213D] px-3 py-1.5 text-xs text-white shadow-xl group-hover:flex items-center z-50 whitespace-nowrap border border-[#263E89] pointer-events-none font-khmer">
+                          {item.title}
+                        </div>
+                      )}
+                    </>
                   )}
-                  {collapsed && (
-                    <div className="absolute left-full ml-3 hidden rounded-lg bg-[#16213D] px-3 py-1.5 text-xs text-white shadow-xl group-hover:flex items-center z-50 whitespace-nowrap border border-[#263E89] pointer-events-none">
-                      {item.title}
-                    </div>
-                  )}
-                </>
-              )}
-            </NavLink>
-          );
-        })}
+                </NavLink>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {/* User Footer Profile */}

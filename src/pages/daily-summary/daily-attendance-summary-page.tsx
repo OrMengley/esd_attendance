@@ -56,7 +56,7 @@ export const DailyAttendanceSummaryPage: React.FC = () => {
   const scheduledCount = classesSummary.length;
 
   return (
-    <div className="space-y-6 pb-16 max-w-7xl mx-auto">
+    <div className="space-y-6 pb-16 max-w-full mx-auto">
       {/* 1. Header with Date Navigator & Timezone Context */}
       <DailySummaryHeader
         selectedDate={selectedDate}
@@ -116,9 +116,9 @@ export const DailyAttendanceSummaryPage: React.FC = () => {
               <p className="text-xs text-muted-foreground max-w-md leading-relaxed">
                 {holidayName
                   ? `${t("dailySummary.schoolClosedNotice", {
-                      defaultValue:
-                        "សាលារៀនត្រូវបានបិទផ្លូវការនៅថ្ងៃនេះដោយសារជាថ្ងៃឈប់សម្រាក។ មិនមានកាលវិភាគបង្រៀនទេ។",
-                    })} (${holidayName})`
+                    defaultValue:
+                      "សាលារៀនត្រូវបានបិទផ្លូវការនៅថ្ងៃនេះដោយសារជាថ្ងៃឈប់សម្រាក។ មិនមានកាលវិភាគបង្រៀនទេ។",
+                  })} (${holidayName})`
                   : t("dailySummary.schoolClosedNotice")}
               </p>
             </div>

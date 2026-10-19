@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranch } from "@/contexts/branch-context";
 import { dashboardService } from "@/services/dashboard.service";
 import { DashboardData } from "@/models/dashboard.model";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
@@ -12,6 +13,7 @@ import { toast } from "sonner";
 export const DashboardPage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { currentBranchId } = useBranch();
 
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,7 +28,7 @@ export const DashboardPage: React.FC = () => {
     }
 
     try {
-      const data = await dashboardService.getDashboardData(user);
+      const data = await dashboardService.getDashboardData(user, currentBranchId);
       setDashboardData(data);
     } catch (e) {
       console.error("Failed to load dashboard data:", e);
@@ -37,7 +39,7 @@ export const DashboardPage: React.FC = () => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user, t]);
+  }, [user, currentBranchId, t]);
 
   useEffect(() => {
     loadData(false);

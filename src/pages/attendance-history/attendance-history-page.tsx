@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranch } from "@/contexts/branch-context";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -47,6 +48,7 @@ import { formatKhmerDate } from "@/lib/utils";
 export const AttendanceHistoryPage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { currentBranchId, isAllBranches } = useBranch();
 
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -103,13 +105,51 @@ export const AttendanceHistoryPage: React.FC = () => {
     }
   };
 
-  const relevantClassroomIds = classrooms.map((c) => c.id);
+  const classroomsMap = useMemo(() => new Map(classrooms.map((c) => [c.id, c])), [classrooms]);
+
+  // Branch and role scoped classrooms
+  const scopedClassrooms = useMemo<Classroom[]>(() => {
+    let list = classrooms;
+    if (isTeacher) {
+      list = list.filter((c) => c.assignedTeacherId === user?.id);
+    }
+    if (!isAllBranches && currentBranchId) {
+      list = list.filter((c) => c.branchId === currentBranchId);
+    }
+    return list;
+  }, [classrooms, isTeacher, user?.id, isAllBranches, currentBranchId]);
+
+  const scopedClassroomIds = useMemo(
+    () => new Set(scopedClassrooms.map((c) => c.id)),
+    [scopedClassrooms]
+  );
+
+  // Reset selectedClass if it is no longer in scoped classrooms
+  useEffect(() => {
+    if (
+      selectedClass !== "all" &&
+      !scopedClassrooms.some((c) => c.id === selectedClass)
+    ) {
+      setSelectedClass("all");
+    }
+  }, [scopedClassrooms, selectedClass]);
 
   // Filter records
   const filteredAttendance = attendance.filter((record) => {
     // If teacher, only their classes
-    if (isTeacher && !relevantClassroomIds.includes(record.classroomId)) {
+    if (isTeacher && !scopedClassroomIds.has(record.classroomId)) {
       return false;
+    }
+
+    // Branch scoping
+    if (!isAllBranches && currentBranchId) {
+      const cls = classroomsMap.get(record.classroomId);
+      if (cls?.branchId) {
+        if (cls.branchId !== currentBranchId) return false;
+      } else {
+        const student = students.find((s) => s.id === record.studentId);
+        if (student?.branchId && student.branchId !== currentBranchId) return false;
+      }
     }
 
     const student = students.find((s) => s.id === record.studentId);
@@ -228,7 +268,7 @@ export const AttendanceHistoryPage: React.FC = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("attendanceHistory.allClassrooms")}</SelectItem>
-              {classrooms.map((c) => (
+              {scopedClassrooms.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.name}
                 </SelectItem>

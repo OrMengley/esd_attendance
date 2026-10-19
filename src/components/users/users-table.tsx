@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { User } from "@/models/user.model";
 import { Classroom } from "@/models/classroom.model";
+import { Branch } from "@/models/branch.model";
 import { UserRoleBadge } from "./user-role-badge";
 import { UserStatusBadge } from "./user-status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -20,6 +21,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,12 +36,14 @@ import {
   Phone,
   School,
   Power,
+  Building2,
 } from "lucide-react";
 import { formatKhmerDate, formatKhmerTime } from "@/lib/utils";
 
 interface UsersTableProps {
   users: User[];
   classrooms: Classroom[];
+  branches?: Branch[];
   currentUser: User | null;
   loading: boolean;
   onEdit: (user: User) => void;
@@ -47,6 +55,7 @@ interface UsersTableProps {
 export const UsersTable: React.FC<UsersTableProps> = ({
   users,
   classrooms,
+  branches = [],
   currentUser,
   loading,
   onEdit,
@@ -101,9 +110,13 @@ export const UsersTable: React.FC<UsersTableProps> = ({
         </TableHeader>
         <TableBody>
           {users.map((userItem) => {
-            const assignedClassNames = (userItem.assignedClassroomIds || [])
-              .map((id) => classrooms.find((c) => c.id === id)?.name)
-              .filter(Boolean);
+            const assignedClassNames = classrooms
+              .filter(
+                (c) =>
+                  c.assignedTeacherId === userItem.id ||
+                  userItem.assignedClassroomIds?.includes(c.id)
+              )
+              .map((c) => c.name);
 
             const isSelf = currentUser?.id === userItem.id;
             const isTargetSuperAdmin = userItem.role === "super_admin";
@@ -167,22 +180,52 @@ export const UsersTable: React.FC<UsersTableProps> = ({
 
                 <TableCell>
                   <UserRoleBadge role={userItem.role} />
+                  {/* {userItem.branchId && (
+                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-1 font-khmer">
+                      <Building2 className="h-3 w-3 text-blue-500 shrink-0" />
+                      <span className="truncate">
+                        {branches.find((b) => b.id === userItem.branchId)?.nameKh || userItem.branchId}
+                      </span>
+                    </div>
+                  )} */}
                 </TableCell>
 
                 <TableCell className="text-xs max-w-[200px]">
                   {userItem.role === "teacher" ? (
                     assignedClassNames.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {assignedClassNames.map((cName, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-primary/10 text-primary dark:bg-primary/20 dark:text-blue-300"
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-primary/10 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:text-blue-300 transition-colors cursor-pointer border border-primary/20"
+                            title={t("classes.assignedClasses", { defaultValue: "ថ្នាក់រៀនដែលទទួលបន្ទុក" })}
                           >
-                            <School className="h-2.5 w-2.5" />
-                            {cName}
-                          </span>
-                        ))}
-                      </div>
+                            <School className="h-3 w-3" />
+                            <span>{assignedClassNames.length} {t("classes.classesUnit", { defaultValue: "ថ្នាក់" })}</span>
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-64 p-3 font-khmer shadow-lg">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5 pb-1.5 border-b border-border/60">
+                              <School className="h-3.5 w-3.5 text-primary" />
+                              <span className="text-xs font-bold text-foreground">
+                                {t("classes.assignedClasses", { defaultValue: "ថ្នាក់រៀនដែលទទួលបន្ទុក" })} ({assignedClassNames.length})
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+                              {assignedClassNames.map((cName, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center gap-2 p-1.5 rounded-md bg-muted/60 text-xs text-foreground font-medium"
+                                >
+                                  <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                                  <span className="truncate">{cName}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     ) : (
                       <span className="text-muted-foreground italic text-[11px]">
                         {t("users.noClasses")}

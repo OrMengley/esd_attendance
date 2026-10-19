@@ -21,7 +21,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { User, UserRole, UserStatus } from "@/models/user.model";
 import { Classroom } from "@/models/classroom.model";
-import { Eye, EyeOff, Lock, User as UserIcon, Mail, Phone } from "lucide-react";
+import { Branch } from "@/models/branch.model";
+import { Eye, EyeOff, Lock, User as UserIcon, Mail, Phone, Building2 } from "lucide-react";
 
 interface UserDialogProps {
   open: boolean;
@@ -29,6 +30,8 @@ interface UserDialogProps {
   userToEdit?: User | null;
   currentUser: User | null;
   classrooms: Classroom[];
+  branches?: Branch[];
+  defaultBranchId?: string;
   onSubmit: (userData: Omit<User, "id" | "createdAt" | "updatedAt">) => Promise<void>;
 }
 
@@ -38,6 +41,8 @@ export const UserDialog: React.FC<UserDialogProps> = ({
   userToEdit,
   currentUser,
   classrooms,
+  branches = [],
+  defaultBranchId,
   onSubmit,
 }) => {
   const { t } = useTranslation();
@@ -48,6 +53,7 @@ export const UserDialog: React.FC<UserDialogProps> = ({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<UserRole>("teacher");
+  const [branchId, setBranchId] = useState<string>("");
   const [assignedClassroomIds, setAssignedClassroomIds] = useState<string[]>([]);
   const [status, setStatus] = useState<UserStatus>("active");
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -61,6 +67,7 @@ export const UserDialog: React.FC<UserDialogProps> = ({
       setEmail(userToEdit.email || "");
       setPhone(userToEdit.phone || "");
       setRole(userToEdit.role || "teacher");
+      setBranchId(userToEdit.branchId || "");
       setAssignedClassroomIds(userToEdit.assignedClassroomIds || []);
       setStatus(userToEdit.status || "active");
     } else {
@@ -70,12 +77,13 @@ export const UserDialog: React.FC<UserDialogProps> = ({
       setEmail("");
       setPhone("");
       setRole("teacher");
+      setBranchId(defaultBranchId && defaultBranchId !== "all" ? defaultBranchId : (branches[0]?.id || ""));
       setAssignedClassroomIds([]);
       setStatus("active");
     }
     setShowPassword(false);
     setValidationError(null);
-  }, [userToEdit, open]);
+  }, [userToEdit, open, defaultBranchId, branches]);
 
   const handleToggleClass = (classId: string) => {
     setAssignedClassroomIds((prev) =>
@@ -131,6 +139,7 @@ export const UserDialog: React.FC<UserDialogProps> = ({
         email: email.trim() || undefined,
         phone: phone.trim() || undefined,
         role,
+        branchId: branchId || undefined,
         assignedClassroomIds: role === "teacher" ? assignedClassroomIds : [],
         status,
         avatarUrl: userToEdit?.avatarUrl || "",
@@ -243,6 +252,27 @@ export const UserDialog: React.FC<UserDialogProps> = ({
             </div>
           </div>
 
+          {/* Branch Selection (for teachers or admins) */}
+          {(role === "teacher" || role === "admin") && branches.length > 0 && (
+            <div className="space-y-1.5">
+              <Label htmlFor="usr-branch" className="text-xs">
+                {t("branches.branch", { defaultValue: "សាខា" })} {role === "teacher" && <span className="text-destructive">*</span>}
+              </Label>
+              <Select value={branchId} onValueChange={setBranchId}>
+                <SelectTrigger id="usr-branch" className="font-khmer">
+                  <SelectValue placeholder={t("branches.selectBranchPlaceholder", { defaultValue: "ជ្រើសរើសសាខាសាលា..." })} />
+                </SelectTrigger>
+                <SelectContent className="font-khmer">
+                  {branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.nameKh} ({b.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="usr-email" className="text-xs">
@@ -295,33 +325,35 @@ export const UserDialog: React.FC<UserDialogProps> = ({
               <Label className="text-xs font-semibold text-foreground">
                 {t("users.assignedClassesHelp")}
               </Label>
-              {classrooms.length === 0 ? (
+              {classrooms.filter((c) => !branchId || c.branchId === branchId).length === 0 ? (
                 <p className="text-xs text-muted-foreground italic py-1">
                   {t("classes.noClassesDesc")}
                 </p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 max-h-40 overflow-y-auto">
-                  {classrooms.map((c) => {
-                    const checked = assignedClassroomIds.includes(c.id);
-                    return (
-                      <div
-                        key={c.id}
-                        onClick={() => handleToggleClass(c.id)}
-                        className={`flex items-center space-x-2 p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
-                          checked
-                            ? "bg-primary/10 border-primary/40 font-medium text-primary dark:text-blue-200"
-                            : "bg-card hover:bg-muted/70"
-                        }`}
-                      >
-                        <Checkbox
-                          id={`cls-chk-${c.id}`}
-                          checked={checked}
-                          onCheckedChange={() => handleToggleClass(c.id)}
-                        />
-                        <span className="truncate">{c.name}</span>
-                      </div>
-                    );
-                  })}
+                  {classrooms
+                    .filter((c) => !branchId || c.branchId === branchId)
+                    .map((c) => {
+                      const checked = assignedClassroomIds.includes(c.id);
+                      return (
+                        <div
+                          key={c.id}
+                          onClick={() => handleToggleClass(c.id)}
+                          className={`flex items-center space-x-2 p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                            checked
+                              ? "bg-primary/10 border-primary/40 font-medium text-primary dark:text-blue-200"
+                              : "bg-card hover:bg-muted/70"
+                          }`}
+                        >
+                          <Checkbox
+                            id={`cls-chk-${c.id}`}
+                            checked={checked}
+                            onCheckedChange={() => handleToggleClass(c.id)}
+                          />
+                          <span className="truncate">{c.name}</span>
+                        </div>
+                      );
+                    })}
                 </div>
               )}
             </div>

@@ -12,6 +12,7 @@ export interface User {
   phone?: string;
   role: UserRole;
   avatarUrl?: string;
+  branchId?: string;
   assignedClassroomIds: string[];
   status: UserStatus;
   lastLogin?: string;

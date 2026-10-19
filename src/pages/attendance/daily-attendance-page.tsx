@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranch } from "@/contexts/branch-context";
 import { classroomService } from "@/services/classroom.service";
 import { studyPackageService } from "@/services/study-package.service";
 import { userService } from "@/services/user.service";
@@ -44,6 +45,7 @@ import { LockOpen, AlertCircle } from "lucide-react";
 export const DailyAttendancePage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { currentBranchId, isAllBranches } = useBranch();
   const [searchParams] = useSearchParams();
 
   const isTeacher = user?.role === "teacher";
@@ -73,7 +75,7 @@ export const DailyAttendancePage: React.FC = () => {
   const [isConfirmEditOpen, setIsConfirmEditOpen] = useState(false);
 
   const [isLoadingClasses, setIsLoadingClasses] = useState(true);
-  const [isLoadingAttendance, setIsLoadingAttendance] = useState(false);
+  const [isLoadingAttendance, setIsLoadingAttendance] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   // Time ticker to update time state automatically every 10 seconds
@@ -105,9 +107,13 @@ export const DailyAttendancePage: React.FC = () => {
       ]);
 
       const activeClasses = allClasses.filter((c) => c.status === "active");
-      const accessibleClasses = isTeacher
-        ? activeClasses.filter((c) => c.assignedTeacherId === user?.id)
+      const branchScopedClasses = (!isAllBranches && currentBranchId)
+        ? activeClasses.filter((c) => c.branchId === currentBranchId)
         : activeClasses;
+
+      const accessibleClasses = isTeacher
+        ? branchScopedClasses.filter((c) => c.assignedTeacherId === user?.id)
+        : branchScopedClasses;
 
       setClassrooms(accessibleClasses);
       setPackages(allPackages);
@@ -115,13 +121,19 @@ export const DailyAttendancePage: React.FC = () => {
       setActiveHolidays(holidays);
 
       if (accessibleClasses.length > 0) {
-        if (paramClassroomId && accessibleClasses.some((c) => c.id === paramClassroomId)) {
-          setSelectedClassId(paramClassroomId);
-        } else if (!selectedClassId || !accessibleClasses.some((c) => c.id === selectedClassId)) {
-          setSelectedClassId(accessibleClasses[0].id);
-        }
+        setIsLoadingAttendance(true);
+        setSelectedClassId((prev) => {
+          if (paramClassroomId && accessibleClasses.some((c) => c.id === paramClassroomId)) {
+            return paramClassroomId;
+          }
+          if (!prev || !accessibleClasses.some((c) => c.id === prev)) {
+            return accessibleClasses[0].id;
+          }
+          return prev;
+        });
       } else {
         setSelectedClassId("");
+        setIsLoadingAttendance(false);
       }
     } catch (e) {
       console.error("Failed to load classrooms for attendance:", e);
@@ -129,11 +141,11 @@ export const DailyAttendancePage: React.FC = () => {
     } finally {
       setIsLoadingClasses(false);
     }
-  }, [isTeacher, user?.id, selectedClassId, paramClassroomId, t]);
+  }, [isTeacher, user?.id, isAllBranches, currentBranchId, paramClassroomId, t]);
 
   useEffect(() => {
     loadInitialData();
-  }, [user?.id, isTeacher]);
+  }, [loadInitialData]);
 
   const selectedClassroom = useMemo(() => {
     return classrooms.find((c) => c.id === selectedClassId) || null;
@@ -183,6 +195,22 @@ export const DailyAttendancePage: React.FC = () => {
     return true;
   }, [accessState, isValidScheduleDay, isTeacher, hasExistingRecords, isEditing]);
 
+  // Handler for class selection with immediate loading state
+  const handleSelectClassId = (newClassId: string) => {
+    if (newClassId !== selectedClassId) {
+      setIsLoadingAttendance(true);
+      setSelectedClassId(newClassId);
+    }
+  };
+
+  // Handler for date selection with immediate loading state
+  const handleSelectDate = (newDate: string) => {
+    if (newDate !== date) {
+      setIsLoadingAttendance(true);
+      setDate(newDate);
+    }
+  };
+
   // Load eligible students & attendance records
   const loadClassAttendance = useCallback(async () => {
     if (!selectedClassId || !date) {
@@ -191,6 +219,7 @@ export const DailyAttendancePage: React.FC = () => {
       setHasExistingRecords(false);
       setHasUnsavedChanges(false);
       setIsEditing(false);
+      setIsLoadingAttendance(false);
       return;
     }
 
@@ -409,7 +438,7 @@ export const DailyAttendancePage: React.FC = () => {
   const permissionCount = attendanceItems.filter((i) => i.status === "permission").length;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-16">
+    <div className="max-w-full mx-auto space-y-6 pb-16">
       {/* Top Header */}
       <AttendanceHeader
         onMarkAllPresent={handleMarkAllPresent}
@@ -435,9 +464,9 @@ export const DailyAttendancePage: React.FC = () => {
         packages={packages}
         teachers={teachers}
         selectedClassId={selectedClassId}
-        onSelectClassId={setSelectedClassId}
+        onSelectClassId={handleSelectClassId}
         selectedDate={date}
-        onSelectDate={setDate}
+        onSelectDate={handleSelectDate}
         selectedClassroom={selectedClassroom}
         selectedPackage={selectedPackage}
         selectedTeacher={selectedTeacher}
@@ -474,7 +503,7 @@ export const DailyAttendancePage: React.FC = () => {
             </span>
           </div>
 
-          {isLoadingAttendance ? (
+          {isLoadingClasses || isLoadingAttendance ? (
             <div className="space-y-3 py-6">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-16 bg-card rounded-2xl border animate-pulse" />

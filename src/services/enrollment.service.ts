@@ -4,10 +4,12 @@ import {
   getDoc,
   addDoc,
   updateDoc,
+  deleteDoc,
   doc,
   query,
   where,
   runTransaction,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { Enrollment, EnrollmentStatus } from "../models/enrollment.model";
@@ -230,6 +232,90 @@ export const enrollmentService = {
   },
 
   /**
+   * Bulk enroll multiple students into a classroom
+   */
+  async createEnrollments(
+    items: Array<Omit<Enrollment, "id" | "createdAt" | "updatedAt">>,
+    currentUserId?: string
+  ): Promise<Enrollment[]> {
+    if (!items || items.length === 0) {
+      return [];
+    }
+
+    const classroomId = items[0].classroomId;
+    const classroom = await classroomService.getClassroomById(classroomId);
+    if (!classroom) {
+      throw new Error("CLASSROOM_NOT_FOUND");
+    }
+
+    if (classroom.status !== "active") {
+      throw new Error("CLASSROOM_NOT_ACTIVE");
+    }
+
+    // Capacity validation
+    if (classroom.capacity && classroom.capacity > 0) {
+      const activeEnrollments = await this.getActiveEnrollmentsByClassroomId(classroomId);
+      if (activeEnrollments.length + items.length > classroom.capacity) {
+        throw new Error("CLASS_CAPACITY_FULL");
+      }
+    }
+
+    const now = new Date().toISOString();
+    const preparedItems: Array<{ docRef: any; newEnrollment: Enrollment; rawData: Omit<Enrollment, "id"> }> = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const newDocRef = doc(collection(db, "enrollments"));
+      const rawData: Omit<Enrollment, "id"> = {
+        studentId: item.studentId,
+        classroomId: item.classroomId,
+        packageId: classroom.packageId || item.packageId,
+        startDate: item.startDate || classroom.startDate,
+        expectedEndDate: item.expectedEndDate || classroom.expectedEndDate,
+        actualEndDate: item.actualEndDate || "",
+        status: item.status || "active",
+        note: item.note ? item.note.trim() : "",
+        createdAt: now,
+        updatedAt: now,
+        createdBy: currentUserId || "system",
+        updatedBy: currentUserId || "system",
+      };
+      preparedItems.push({
+        docRef: newDocRef,
+        newEnrollment: { id: newDocRef.id, ...rawData },
+        rawData,
+      });
+    }
+
+    try {
+      // Chunk writes into batches of 450 (Firestore limit is 500)
+      const chunkSize = 450;
+      for (let i = 0; i < preparedItems.length; i += chunkSize) {
+        const chunk = preparedItems.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach(({ docRef, rawData }) => {
+          batch.set(docRef, rawData);
+        });
+        await batch.commit();
+      }
+
+      const createdList = preparedItems.map((p) => p.newEnrollment);
+      const local = getLocalEnrollments();
+      saveLocalEnrollments([...createdList, ...local]);
+      return createdList;
+    } catch (e) {
+      console.warn("Firestore createEnrollments fallback to local:", e);
+      const localCreated: Enrollment[] = preparedItems.map((p, idx) => ({
+        ...p.newEnrollment,
+        id: `enr-${Date.now()}-${idx}`,
+      }));
+      const local = getLocalEnrollments();
+      saveLocalEnrollments([...localCreated, ...local]);
+      return localCreated;
+    }
+  },
+
+  /**
    * Update enrollment details
    */
   async updateEnrollment(
@@ -249,6 +335,30 @@ export const enrollmentService = {
       );
       if (activeEnr && activeEnr.id !== id) {
         throw new Error("ACTIVE_ENROLLMENT_EXISTS");
+      }
+    }
+
+    // If changing classroom, validate target class existence, active status & capacity
+    if (updates.classroomId && updates.classroomId !== existing.classroomId) {
+      const targetClass = await classroomService.getClassroomById(
+        updates.classroomId
+      );
+      if (!targetClass) {
+        throw new Error("CLASSROOM_NOT_FOUND");
+      }
+      if (targetClass.status !== "active") {
+        throw new Error("CLASSROOM_NOT_ACTIVE");
+      }
+      if (targetClass.capacity && targetClass.capacity > 0) {
+        const activeInTarget = await this.getActiveEnrollmentsByClassroomId(
+          updates.classroomId
+        );
+        if (activeInTarget.length >= targetClass.capacity) {
+          throw new Error("CLASS_CAPACITY_FULL");
+        }
+      }
+      if (!updates.packageId && targetClass.packageId) {
+        updates.packageId = targetClass.packageId;
       }
     }
 
@@ -558,5 +668,18 @@ export const enrollmentService = {
           new Date(b.transferredAt).getTime() -
           new Date(a.transferredAt).getTime()
       );
+  },
+
+  /**
+   * Delete enrollment record
+   */
+  async deleteEnrollment(id: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, "enrollments", id));
+    } catch (e) {
+      console.warn("Firestore deleteEnrollment fallback to local:", e);
+    }
+    const local = getLocalEnrollments();
+    saveLocalEnrollments(local.filter((e) => e.id !== id));
   },
 };

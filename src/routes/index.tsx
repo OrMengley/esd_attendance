@@ -20,6 +20,7 @@ import { StudentAttendanceDetailPage } from "@/pages/student-attendance/student-
 import { StudentMonthlyReportPreviewPage } from "@/pages/student-attendance/student-monthly-report-preview-page";
 import { HolidaysPage } from "@/pages/holidays/holidays-page";
 import { HolidayFormPage } from "@/pages/holidays/holiday-form-page";
+import { BranchesPage } from "@/pages/branches/branches-page";
 import { UsersPage } from "@/pages/users/users-page";
 import { SettingsPage } from "@/pages/settings/settings-page";
 import { DailyAttendanceSummaryPage } from "@/pages/daily-summary/daily-attendance-summary-page";
@@ -29,6 +30,7 @@ import { ClassProgressReportPage } from "@/pages/reports/class-progress-report-p
 import { ClassProgressReportPrintPage } from "@/pages/reports/class-progress-report-print-page";
 import { AttendanceCorrectionsPage } from "@/pages/attendance/attendance-corrections-page";
 import { AttendanceAuditLogsPage } from "@/pages/attendance/attendance-audit-logs-page";
+import { EnrollmentsListPage } from "@/pages/enrollments/enrollments-list-page";
 
 export const router = createBrowserRouter([
   {
@@ -93,6 +95,10 @@ export const router = createBrowserRouter([
                 element: <StudentFormPage mode="edit" />,
               },
               {
+                path: "enrollments",
+                element: <EnrollmentsListPage />,
+              },
+              {
                 path: "packages",
                 element: <PackagesPage />,
               },
@@ -115,6 +121,10 @@ export const router = createBrowserRouter([
               {
                 path: "classes/:id",
                 element: <ClassroomDetailPage />,
+              },
+              {
+                path: "branches",
+                element: <BranchesPage />,
               },
               {
                 path: "holidays",

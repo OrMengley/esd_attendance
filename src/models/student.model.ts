@@ -10,6 +10,7 @@ export interface StudentAddress {
 export interface Student {
   id: string;
   studentCode: string;
+  branchId?: string;
 
   nameKh: string;
   nameEn?: string;

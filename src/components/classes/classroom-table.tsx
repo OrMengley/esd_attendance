@@ -21,6 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Classroom } from "@/models/classroom.model";
 import { StudyPackage } from "@/models/study-package.model";
 import { User } from "@/models/user.model";
+import { Branch } from "@/models/branch.model";
 import { ClassroomStatusBadge } from "./classroom-status-badge";
 import {
   MoreHorizontal,
@@ -38,6 +39,7 @@ interface ClassroomTableProps {
   classrooms: Classroom[];
   studyPackages: StudyPackage[];
   teachers: User[];
+  branches?: Branch[];
   onViewDetails: (cls: Classroom) => void;
   onEdit: (cls: Classroom) => void;
   onToggleStatus: (cls: Classroom) => void;
@@ -48,12 +50,19 @@ export const ClassroomTable: React.FC<ClassroomTableProps> = ({
   classrooms,
   studyPackages,
   teachers,
+  branches,
   onViewDetails,
   onEdit,
   onToggleStatus,
   onMarkCompleted,
 }) => {
   const { t } = useTranslation();
+
+  const branchMap = React.useMemo(() => {
+    const map = new Map<string, Branch>();
+    (branches || []).forEach((b) => map.set(b.id, b));
+    return map;
+  }, [branches]);
 
   const packageMap = React.useMemo(() => {
     const map = new Map<string, StudyPackage>();
@@ -123,9 +132,16 @@ export const ClassroomTable: React.FC<ClassroomTableProps> = ({
                       >
                         {cls.name}
                       </button>
-                      <span className="font-mono text-[11px] font-semibold text-primary/90 mt-0.5">
-                        {cls.code}
-                      </span>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <span className="font-mono text-[11px] font-semibold text-primary/90">
+                          {cls.code}
+                        </span>
+                        {cls.branchId && branchMap.get(cls.branchId) && (
+                          <span className="text-[10px] font-khmer px-1.5 py-0.5 rounded bg-muted/80 text-muted-foreground border border-border/50">
+                            {branchMap.get(cls.branchId)?.nameKh}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
 

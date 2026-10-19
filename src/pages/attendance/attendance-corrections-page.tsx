@@ -15,6 +15,7 @@ import { Student } from "@/models/student.model";
 import { User } from "@/models/user.model";
 import { Attendance, AttendanceStatus } from "@/models/attendance.model";
 import { getCambodiaToday } from "@/lib/attendance-time-lock";
+import { useBranch } from "@/contexts/branch-context";
 import { toast } from "sonner";
 import {
   Edit3,
@@ -29,6 +30,7 @@ import {
 
 export const AttendanceCorrectionsPage: React.FC = () => {
   const { t } = useTranslation();
+  const { currentBranchId, isAllBranches } = useBranch();
 
   // Current month default range
   const today = getCambodiaToday();
@@ -143,9 +145,52 @@ export const AttendanceCorrectionsPage: React.FC = () => {
     setCorrectedOnly(false);
   };
 
+  // Branch scoped classrooms
+  const scopedClassrooms = useMemo(() => {
+    if (isAllBranches || !currentBranchId) return classrooms;
+    return classrooms.filter((c) => c.branchId === currentBranchId);
+  }, [classrooms, isAllBranches, currentBranchId]);
+
+  // Branch scoped teachers
+  const scopedTeachers = useMemo(() => {
+    if (isAllBranches || !currentBranchId) return teachers;
+    return teachers.filter(
+      (u) => u.branchId === currentBranchId || u.role === "super_admin"
+    );
+  }, [teachers, isAllBranches, currentBranchId]);
+
+  // Reset selectedClassId if outside scoped classrooms
+  useEffect(() => {
+    if (
+      selectedClassId !== "all" &&
+      !scopedClassrooms.some((c) => c.id === selectedClassId)
+    ) {
+      setSelectedClassId("all");
+    }
+  }, [scopedClassrooms, selectedClassId]);
+
+  // Reset selectedTeacherId if outside scoped teachers
+  useEffect(() => {
+    if (
+      selectedTeacherId !== "all" &&
+      !scopedTeachers.some((u) => u.id === selectedTeacherId)
+    ) {
+      setSelectedTeacherId("all");
+    }
+  }, [scopedTeachers, selectedTeacherId]);
+
   // Filter records
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
+      // Branch scoping check
+      if (!isAllBranches && currentBranchId) {
+        if (r.classroom?.branchId) {
+          if (r.classroom.branchId !== currentBranchId) return false;
+        } else if (r.student?.branchId && r.student.branchId !== currentBranchId) {
+          return false;
+        }
+      }
+
       const date = r.attendanceDate || r.date || "";
 
       // Date range
@@ -204,6 +249,8 @@ export const AttendanceCorrectionsPage: React.FC = () => {
     selectedStatus,
     correctedOnly,
     searchQuery,
+    isAllBranches,
+    currentBranchId,
   ]);
 
   // Stat metrics
@@ -302,8 +349,8 @@ export const AttendanceCorrectionsPage: React.FC = () => {
         onEndDateChange={setEndDate}
         correctedOnly={correctedOnly}
         onCorrectedOnlyChange={setCorrectedOnly}
-        classrooms={classrooms}
-        teachers={teachers}
+        classrooms={scopedClassrooms}
+        teachers={scopedTeachers}
         onReset={handleResetFilters}
       />
 

@@ -14,7 +14,7 @@ export const dashboardService = {
   /**
    * Fetches required collections in parallel (no N+1 reads) and returns role-scoped dashboard data.
    */
-  async getDashboardData(currentUser: User): Promise<DashboardData> {
+  async getDashboardData(currentUser: User, branchId?: string | null): Promise<DashboardData> {
     const [
       classrooms,
       packages,
@@ -44,6 +44,7 @@ export const dashboardService = {
       students,
       attendance,
       holidays,
+      branchId,
       currentDateTime,
     });
   },
