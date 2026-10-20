@@ -67,7 +67,13 @@ export const UserDialog: React.FC<UserDialogProps> = ({
       setEmail(userToEdit.email || "");
       setPhone(userToEdit.phone || "");
       setRole(userToEdit.role || "teacher");
-      setBranchId(userToEdit.branchId || "");
+      const fallbackBranch =
+        defaultBranchId && defaultBranchId !== "all"
+          ? defaultBranchId
+          : branches[0]?.id || "";
+      setBranchId(
+        userToEdit.branchId || (userToEdit.role !== "super_admin" ? fallbackBranch : "")
+      );
       setAssignedClassroomIds(userToEdit.assignedClassroomIds || []);
       setStatus(userToEdit.status || "active");
     } else {
@@ -77,13 +83,44 @@ export const UserDialog: React.FC<UserDialogProps> = ({
       setEmail("");
       setPhone("");
       setRole("teacher");
-      setBranchId(defaultBranchId && defaultBranchId !== "all" ? defaultBranchId : (branches[0]?.id || ""));
+      setBranchId(
+        defaultBranchId && defaultBranchId !== "all"
+          ? defaultBranchId
+          : branches[0]?.id || ""
+      );
       setAssignedClassroomIds([]);
       setStatus("active");
     }
     setShowPassword(false);
     setValidationError(null);
   }, [userToEdit, open, defaultBranchId, branches]);
+
+  const handleRoleChange = (newRole: UserRole) => {
+    setRole(newRole);
+    if (newRole === "super_admin") {
+      setBranchId("");
+    } else if (!branchId) {
+      const fallbackBranch =
+        defaultBranchId && defaultBranchId !== "all"
+          ? defaultBranchId
+          : branches[0]?.id || "";
+      setBranchId(fallbackBranch);
+    }
+  };
+
+  const handleBranchChange = (newBranchId: string) => {
+    setBranchId(newBranchId);
+    if (newBranchId) {
+      setAssignedClassroomIds((prev) => {
+        const allowedClassIds = new Set(
+          classrooms
+            .filter((c) => !c.branchId || c.branchId === newBranchId)
+            .map((c) => c.id)
+        );
+        return prev.filter((id) => allowedClassIds.has(id));
+      });
+    }
+  };
 
   const handleToggleClass = (classId: string) => {
     setAssignedClassroomIds((prev) =>
@@ -123,6 +160,12 @@ export const UserDialog: React.FC<UserDialogProps> = ({
       return false;
     }
 
+    // Branch validation for teachers if branches exist
+    if (role === "teacher" && branches.length > 0 && !branchId) {
+      setValidationError(t("users.branchRequired", { defaultValue: "សូមជ្រើសរើសសាខាសាលា" }));
+      return false;
+    }
+
     return true;
   };
 
@@ -132,14 +175,15 @@ export const UserDialog: React.FC<UserDialogProps> = ({
 
     setIsSubmitting(true);
     try {
+      const cleanBranchId = role === "super_admin" ? "" : (branchId ? branchId.trim() : "");
       await onSubmit({
         name: name.trim(),
         username: username.trim().toLowerCase(),
         password: password.trim() || userToEdit?.password || "123456",
-        email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
+        email: email.trim(),
+        phone: phone.trim(),
         role,
-        branchId: branchId || undefined,
+        branchId: cleanBranchId,
         assignedClassroomIds: role === "teacher" ? assignedClassroomIds : [],
         status,
         avatarUrl: userToEdit?.avatarUrl || "",
@@ -236,7 +280,7 @@ export const UserDialog: React.FC<UserDialogProps> = ({
               </Label>
               <Select
                 value={role}
-                onValueChange={(v: UserRole) => setRole(v)}
+                onValueChange={(v: UserRole) => handleRoleChange(v)}
                 disabled={Boolean(isSelf && userToEdit?.role === "super_admin")} // Cannot change own super_admin role
               >
                 <SelectTrigger id="usr-role">
@@ -258,7 +302,7 @@ export const UserDialog: React.FC<UserDialogProps> = ({
               <Label htmlFor="usr-branch" className="text-xs">
                 {t("branches.branch", { defaultValue: "សាខា" })} {role === "teacher" && <span className="text-destructive">*</span>}
               </Label>
-              <Select value={branchId} onValueChange={setBranchId}>
+              <Select value={branchId || undefined} onValueChange={handleBranchChange}>
                 <SelectTrigger id="usr-branch" className="font-khmer">
                   <SelectValue placeholder={t("branches.selectBranchPlaceholder", { defaultValue: "ជ្រើសរើសសាខាសាលា..." })} />
                 </SelectTrigger>

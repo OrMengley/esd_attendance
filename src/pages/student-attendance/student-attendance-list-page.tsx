@@ -72,10 +72,10 @@ export const StudentAttendanceListPage: React.FC = () => {
 
       const accessibleClasses = isTeacher
         ? allClasses.filter(
-            (c) =>
-              c.assignedTeacherId === user?.id ||
-              user?.assignedClassroomIds?.includes(c.id)
-          )
+          (c) =>
+            c.assignedTeacherId === user?.id ||
+            user?.assignedClassroomIds?.includes(c.id)
+        )
         : allClasses;
 
       setStudentsWithMeta(list);
@@ -358,20 +358,20 @@ export const StudentAttendanceListPage: React.FC = () => {
                                 latestEnrollment.status === "active"
                                   ? "success"
                                   : latestEnrollment.status === "completed"
-                                  ? "default"
-                                  : latestEnrollment.status === "transferred"
-                                  ? "gold"
-                                  : "secondary"
+                                    ? "default"
+                                    : latestEnrollment.status === "transferred"
+                                      ? "gold"
+                                      : "secondary"
                               }
                               className="text-[10px] py-0 px-2 font-medium"
                             >
                               {latestEnrollment.status === "active"
                                 ? t("status.active", { defaultValue: "Active" })
                                 : latestEnrollment.status === "completed"
-                                ? t("classes.statusCompleted", { defaultValue: "Completed" })
-                                : latestEnrollment.status === "transferred"
-                                ? t("transfer.transferredBadge", { defaultValue: "Transferred" })
-                                : latestEnrollment.status}
+                                  ? t("classes.statusCompleted", { defaultValue: "Completed" })
+                                  : latestEnrollment.status === "transferred"
+                                    ? t("transfer.transferredBadge", { defaultValue: "Transferred" })
+                                    : latestEnrollment.status}
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="text-[10px] py-0 px-2 text-muted-foreground">
@@ -388,8 +388,8 @@ export const StudentAttendanceListPage: React.FC = () => {
                               attendanceRate >= 85
                                 ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
                                 : attendanceRate >= 70
-                                ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                                : "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                                  ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                                  : "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
                             )}
                           >
                             {isKm ? `${toKhmerNum(attendanceRate)}%` : `${attendanceRate}%`}
@@ -445,8 +445,8 @@ export const StudentAttendanceListPage: React.FC = () => {
                           attendanceRate >= 85
                             ? "bg-emerald-50 text-emerald-700"
                             : attendanceRate >= 70
-                            ? "bg-amber-50 text-amber-700"
-                            : "bg-rose-50 text-rose-700"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-rose-50 text-rose-700"
                         )}
                       >
                         {isKm ? `${toKhmerNum(attendanceRate)}%` : `${attendanceRate}%`}

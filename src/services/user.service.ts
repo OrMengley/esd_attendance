@@ -152,6 +152,7 @@ export const userService = {
       phone: userData.phone?.trim() || "",
       role: userData.role,
       avatarUrl: userData.avatarUrl || "",
+      branchId: userData.branchId?.trim() || "",
       assignedClassroomIds: userData.assignedClassroomIds || [],
       status: userData.status || "active",
       lastLogin: "",
@@ -202,10 +203,25 @@ export const userService = {
       updatedBy: currentUser?.id || "system",
     };
 
+    if (updateData.name !== undefined) updateData.name = updateData.name.trim();
+    if (updateData.username !== undefined) updateData.username = updateData.username.trim();
+    if (updateData.password !== undefined) updateData.password = updateData.password.trim();
+    if (updateData.email !== undefined) updateData.email = updateData.email ? updateData.email.trim() : "";
+    if (updateData.phone !== undefined) updateData.phone = updateData.phone ? updateData.phone.trim() : "";
+    if (updateData.branchId !== undefined) updateData.branchId = updateData.branchId ? updateData.branchId.trim() : "";
+
+    // Strip undefined properties to prevent Firestore updateDoc crashes
+    const cleanedUpdates: Record<string, any> = {};
+    for (const [key, value] of Object.entries(updateData)) {
+      if (value !== undefined) {
+        cleanedUpdates[key] = value;
+      }
+    }
+
     try {
-      await updateDoc(doc(db, "users", id), updateData);
+      await updateDoc(doc(db, "users", id), cleanedUpdates);
       const updatedUser = await this.getUserById(id);
-      return { success: true, user: updatedUser || ({ id, ...updateData } as User) };
+      return { success: true, user: updatedUser || ({ id, ...cleanedUpdates } as User) };
     } catch (e) {
       console.error("Firestore updateUser error:", e);
       return { success: false, error: "saveError" };

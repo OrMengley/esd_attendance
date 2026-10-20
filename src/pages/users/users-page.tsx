@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { userService } from "@/services/user.service";
+import { authService } from "@/services/auth.service";
 import { classroomService } from "@/services/classroom.service";
 import { User, UserRole, UserStatus } from "@/models/user.model";
 import { Classroom } from "@/models/classroom.model";
@@ -26,7 +27,7 @@ import { UserPlus, Search } from "lucide-react";
 
 export const UsersPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, refreshUser } = useAuth();
   const { currentBranchId, isAllBranches, branches } = useBranch();
   const navigate = useNavigate();
 
@@ -93,6 +94,10 @@ export const UsersPage: React.FC = () => {
             toast.error(t("users.saveError"));
           }
           return;
+        }
+        if (currentUser && currentUser.id === userToEdit.id && res.user) {
+          authService.setCurrentUser(res.user);
+          refreshUser();
         }
         toast.success(t("users.updated"));
       } else {

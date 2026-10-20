@@ -22,7 +22,7 @@ function getLocalStudents(): Student[] {
   } catch (e) {
     console.error(e);
   }
-  return initialMockStudents;
+  return [];
 }
 
 function saveLocalStudents(students: Student[]) {
