@@ -47,15 +47,23 @@ export const ClassesListPage: React.FC = () => {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedBranch, setSelectedBranch] = useState(currentBranchId || "all");
+  const [selectedBranch, setSelectedBranch] = useState(() => {
+    return user?.role !== "super_admin"
+      ? (user?.branchId || currentBranchId || "")
+      : (currentBranchId || "all");
+  });
   const [selectedPackage, setSelectedPackage] = useState("all");
   const [selectedTeacher, setSelectedTeacher] = useState("all");
   const [selectedScheduleType, setSelectedScheduleType] = useState<"all" | "weekday" | "weekend">("all");
   const [selectedStatus, setSelectedStatus] = useState<"all" | ClassroomStatus>("all");
 
   useEffect(() => {
-    setSelectedBranch(currentBranchId || "all");
-  }, [currentBranchId]);
+    if (user?.role !== "super_admin") {
+      setSelectedBranch(user?.branchId || currentBranchId || "");
+    } else {
+      setSelectedBranch(currentBranchId || "all");
+    }
+  }, [currentBranchId, user?.role, user?.branchId]);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -67,32 +75,68 @@ export const ClassesListPage: React.FC = () => {
         branchService.getBranches(),
       ]);
 
+      let userBranches = brList;
+      let userTeachers = usrList;
+      if (user?.role !== "super_admin") {
+        const targetBranchId = user?.branchId || currentBranchId;
+        userBranches = brList.filter((b) => b.id === targetBranchId);
+        if (userBranches.length === 0 && targetBranchId) {
+          const singleBranch = await branchService.getBranchById(targetBranchId);
+          if (singleBranch) {
+            userBranches = [singleBranch];
+          }
+        }
+        if (targetBranchId) {
+          userTeachers = usrList.filter((u) => !u.branchId || u.branchId === targetBranchId);
+        }
+      }
+
       setClassrooms(clsList);
       setStudyPackages(pkgList);
-      setTeachers(usrList);
-      setBranches(brList);
+      setTeachers(userTeachers);
+      setBranches(userBranches);
     } catch (error) {
       console.error("Failed to load classes data:", error);
       toast.error(t("classes.fetchError"));
     } finally {
       setIsLoading(false);
     }
-  }, [t]);
+  }, [t, user?.role, user?.branchId, currentBranchId]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
+  // Scoped Classrooms by branch and role
+  const scopedClassrooms = useMemo(() => {
+    let list = classrooms;
+
+    // Scope by branch: non-super_admins are locked to their own branch
+    const branchToApply = user?.role !== "super_admin"
+      ? (user?.branchId || currentBranchId)
+      : (selectedBranch !== "all" ? selectedBranch : null);
+
+    if (branchToApply && branchToApply !== "all") {
+      list = list.filter((cls) => cls.branchId === branchToApply);
+    }
+
+    // Scope by teacher: teachers only see their assigned classes
+    if (user?.role === "teacher") {
+      list = list.filter(
+        (cls) =>
+          cls.assignedTeacherId === user?.id ||
+          user?.assignedClassroomIds?.includes(cls.id)
+      );
+    }
+
+    return list;
+  }, [classrooms, user?.role, user?.id, user?.branchId, user?.assignedClassroomIds, currentBranchId, selectedBranch]);
+
   // Filtered Classrooms
   const filteredClassrooms = useMemo(() => {
-    return classrooms.filter((cls) => {
+    return scopedClassrooms.filter((cls) => {
       // Status filter
       if (selectedStatus !== "all" && cls.status !== selectedStatus) {
-        return false;
-      }
-
-      // Branch filter
-      if (selectedBranch !== "all" && cls.branchId !== selectedBranch) {
         return false;
       }
 
@@ -127,7 +171,7 @@ export const ClassesListPage: React.FC = () => {
       return true;
     });
   }, [
-    classrooms,
+    scopedClassrooms,
     selectedStatus,
     selectedPackage,
     selectedTeacher,
@@ -137,12 +181,12 @@ export const ClassesListPage: React.FC = () => {
 
   // Statistics counters
   const activeCount = useMemo(
-    () => classrooms.filter((c) => c.status === "active").length,
-    [classrooms]
+    () => scopedClassrooms.filter((c) => c.status === "active").length,
+    [scopedClassrooms]
   );
   const completedCount = useMemo(
-    () => classrooms.filter((c) => c.status === "completed").length,
-    [classrooms]
+    () => scopedClassrooms.filter((c) => c.status === "completed").length,
+    [scopedClassrooms]
   );
 
   // Handlers
@@ -189,7 +233,7 @@ export const ClassesListPage: React.FC = () => {
         <div className="flex items-center gap-2 bg-card px-3.5 py-2 rounded-xl border border-border/80 shadow-xs text-xs font-khmer">
           <School className="h-4 w-4 text-primary" />
           <span className="text-muted-foreground">{t("classes.totalClasses")}:</span>
-          <strong className="text-foreground text-sm font-mono">{classrooms.length}</strong>
+          <strong className="text-foreground text-sm font-mono">{scopedClassrooms.length}</strong>
         </div>
 
         <div className="flex items-center gap-2 bg-card px-3.5 py-2 rounded-xl border border-border/80 shadow-xs text-xs font-khmer">
@@ -225,8 +269,8 @@ export const ClassesListPage: React.FC = () => {
 
           {/* Filter dropdowns */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Branch Filter */}
-            {branches.length > 0 && (
+            {/* Branch Filter (Super Admin only) */}
+            {user?.role === "super_admin" && branches.length > 0 && (
               <Select value={selectedBranch} onValueChange={setSelectedBranch}>
                 <SelectTrigger className="w-[150px] text-xs font-khmer h-9">
                   <SelectValue placeholder={t("branches.allBranches")} />

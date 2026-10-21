@@ -83,7 +83,7 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
   const [startTime, setStartTime] = useState("07:00");
   const [endTime, setEndTime] = useState("08:00");
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [capacity, setCapacity] = useState<number | string>("");
+  const [capacity, setCapacity] = useState<number | string>("25");
   const [note, setNote] = useState("");
   const [status, setStatus] = useState<ClassroomStatus>("active");
 
@@ -263,7 +263,7 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
         hoursPerWeek,
         startDate,
         expectedEndDate: calculatedExpectedEndDate,
-        capacity: capacity === "" ? undefined : Number(capacity),
+        capacity: capacity === "" ? 25 : Number(capacity),
         note: note.trim(),
         status,
       };
@@ -272,7 +272,7 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
         await classroomService.updateClassroom(id, payload, user?.id);
         toast.success(t("classes.updateSuccess"));
       } else {
-        await classroomService.createClassroom(payload, user?.id);
+        const res = await classroomService.createClassroom(payload, user?.id);
         toast.success(t("classes.saveSuccess"));
       }
 
@@ -633,42 +633,39 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <div className="flex items-center min-h-[20px]">
+                <div className="grid grid-cols-2 gap-2 min-h-[20px]">
                   <Label htmlFor="start-time" className="text-xs font-khmer">
                     {t("classes.startTime")} <span className="text-destructive">*</span>
                   </Label>
-                </div>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-3 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    id="start-time"
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="pl-8 text-xs font-mono h-10 rounded-lg"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center min-h-[20px]">
                   <Label htmlFor="end-time" className="text-xs font-khmer">
                     {t("classes.endTime")} <span className="text-destructive">*</span>
                   </Label>
                 </div>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-3 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    id="end-time"
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="pl-8 text-xs font-mono h-10 rounded-lg"
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-3 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      id="start-time"
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="pl-8 text-xs font-mono h-10 rounded-lg"
+                      required
+                    />
+                  </div>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-3 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      id="end-time"
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="pl-8 text-xs font-mono h-10 rounded-lg"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
 
