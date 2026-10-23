@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranch } from "@/contexts/branch-context";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -35,6 +36,7 @@ import { AbsenceLateEmptyState } from "@/components/reports/absence-late/absence
 export const AbsenceLateReportPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
+  const { currentBranchId } = useBranch();
   const navigate = useNavigate();
 
   // Role validation: super_admin and admin only
@@ -67,21 +69,12 @@ export const AbsenceLateReportPage: React.FC = () => {
 
     const loadDropdownData = async () => {
       try {
-        const [cList, uList, pList] = await Promise.all([
-          classroomService.getClassrooms(),
-          userService.getUsers(),
+        const [cList, activeTeachers, pList] = await Promise.all([
+          classroomService.getClassrooms(currentBranchId),
+          userService.getActiveTeachers(currentBranchId),
           studyPackageService.getStudyPackages(),
         ]);
         setClassrooms(cList);
-        // Active teachers only (user.role === "teacher" && user.status === "active")
-        // Excludes super_admin, admin, and inactive teacher accounts
-        const activeTeachers = uList
-          .filter((u) => u.role === "teacher" && u.status === "active")
-          .sort((a, b) =>
-            (a.name || "").localeCompare(b.name || "", undefined, {
-              sensitivity: "base",
-            })
-          );
         setTeachers(activeTeachers);
 
         // Preserve selected teacher if active; otherwise reset to "all"
@@ -105,7 +98,7 @@ export const AbsenceLateReportPage: React.FC = () => {
     };
 
     loadDropdownData();
-  }, [isAuthorized]);
+  }, [isAuthorized, currentBranchId]);
 
   // Load report data whenever filters change
   const fetchReport = useCallback(
@@ -115,7 +108,9 @@ export const AbsenceLateReportPage: React.FC = () => {
       try {
         const data = await absenceLateReportService.generateReport(
           filters,
-          user?.name
+          user?.name,
+          currentBranchId,
+          user
         );
         setReportData(data);
       } catch (error) {
@@ -129,7 +124,7 @@ export const AbsenceLateReportPage: React.FC = () => {
         if (showLoading) setIsLoading(false);
       }
     },
-    [filters, isAuthorized, user?.name, t]
+    [filters, isAuthorized, user, currentBranchId, t]
   );
 
   useEffect(() => {

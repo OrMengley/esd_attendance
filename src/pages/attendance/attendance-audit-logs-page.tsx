@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { useBranch } from "@/contexts/branch-context";
+import { filterAuditLogsByBranch, filterClassesByBranch } from "@/lib/branch-scoping";
 import { PageHeader } from "@/components/layout/page-header";
 import { AuditLogFilters } from "@/components/attendance-corrections/audit-log-filters";
 import { AuditLogTable } from "@/components/attendance-corrections/audit-log-table";
@@ -24,6 +26,7 @@ import { Button } from "@/components/ui/button";
 
 export const AttendanceAuditLogsPage: React.FC = () => {
   const { t } = useTranslation();
+  const { currentBranchId } = useBranch();
 
   // Filters
   const [startDate, setStartDate] = useState("");
@@ -43,23 +46,31 @@ export const AttendanceAuditLogsPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [currentBranchId]);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
       const [allLogs, allClassrooms, allUsers] = await Promise.all([
         attendanceAuditLogService.getAuditLogs(),
-        classroomService.getClassrooms(),
+        classroomService.getClassrooms(currentBranchId),
         userService.getUsers(),
       ]);
 
+      const scopedClassrooms = (currentBranchId && currentBranchId !== "all")
+        ? allClassrooms.filter((c) => c.branchId === currentBranchId)
+        : allClassrooms;
+
+      const scopedLogs = filterAuditLogsByBranch(allLogs, scopedClassrooms, currentBranchId);
+
       const admins = allUsers.filter(
-        (u) => u.role === "admin" || u.role === "super_admin"
+        (u) =>
+          (u.role === "admin" || u.role === "super_admin") &&
+          (!currentBranchId || currentBranchId === "all" || u.role === "super_admin" || u.branchId === currentBranchId)
       );
 
-      setLogs(allLogs);
-      setClassrooms(allClassrooms);
+      setLogs(scopedLogs);
+      setClassrooms(scopedClassrooms);
       setAdminUsers(admins);
     } catch (e) {
       console.error("Failed to load audit logs:", e);

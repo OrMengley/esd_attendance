@@ -24,7 +24,9 @@ import { Classroom } from "@/models/classroom.model";
 import { StudyPackage } from "@/models/study-package.model";
 import { Branch } from "@/models/branch.model";
 import { User } from "@/models/user.model";
+import { useAuth } from "@/contexts/auth-context";
 import { useBranch } from "@/contexts/branch-context";
+import { filterStudentsByBranch } from "@/lib/branch-scoping";
 import { toast } from "sonner";
 import {
   UserPlus,
@@ -40,6 +42,7 @@ import {
 
 export const EnrollmentsListPage: React.FC = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const { currentBranchId, isAllBranches } = useBranch();
 
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
@@ -61,11 +64,12 @@ export const EnrollmentsListPage: React.FC = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      const effectiveBranch = user?.role === "super_admin" ? (isAllBranches ? null : currentBranchId) : user?.branchId;
       const [enrList, stdList, clsList, pkgList, brList, usrList] =
         await Promise.all([
-          enrollmentService.getEnrollments(),
-          studentService.getStudents(),
-          classroomService.getClassrooms(),
+          enrollmentService.getEnrollments(user, currentBranchId),
+          studentService.getStudents(effectiveBranch),
+          classroomService.getClassrooms(effectiveBranch),
           studyPackageService.getStudyPackages(),
           branchService.getBranches(),
           userService.getUsers(),
@@ -107,6 +111,12 @@ export const EnrollmentsListPage: React.FC = () => {
     if (isAllBranches || !currentBranchId) return classrooms;
     return classrooms.filter((c) => c.branchId === currentBranchId);
   }, [classrooms, isAllBranches, currentBranchId]);
+
+  // Scope students to current branch
+  const scopedStudents = useMemo(() => {
+    if (isAllBranches || !currentBranchId) return students;
+    return filterStudentsByBranch(students, enrollments, classrooms, currentBranchId);
+  }, [students, enrollments, classrooms, isAllBranches, currentBranchId]);
 
   // Scope enrollments to current branch
   const scopedEnrollments = useMemo(() => {
@@ -343,7 +353,7 @@ export const EnrollmentsListPage: React.FC = () => {
       ) : (
         <EnrollmentsTable
           enrollments={filteredEnrollments}
-          students={students}
+          students={scopedStudents}
           classrooms={scopedClassrooms}
           packages={packages}
           branches={branches}
@@ -356,7 +366,7 @@ export const EnrollmentsListPage: React.FC = () => {
       <EnrollStudentDialog
         open={isEnrollDialogOpen}
         onOpenChange={setIsEnrollDialogOpen}
-        students={students}
+        students={scopedStudents}
         classrooms={scopedClassrooms}
         packages={packages}
         existingEnrollments={enrollments}

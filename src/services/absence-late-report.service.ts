@@ -11,6 +11,14 @@ import {
   AbsenceLateReportData,
 } from "@/models/absence-late-report.model";
 import { calculateAbsenceLateReport } from "@/lib/absence-late-report-calculator";
+import {
+  getEffectiveBranchId,
+  filterClassesByBranch,
+  filterEnrollmentsByBranch,
+  filterStudentsByBranch,
+  filterAttendanceByBranch,
+} from "@/lib/branch-scoping";
+import { User } from "@/models/user.model";
 
 export const absenceLateReportService = {
   /**
@@ -18,9 +26,17 @@ export const absenceLateReportService = {
    */
   async generateReport(
     filters: AbsenceLateFilters,
-    currentUserName?: string
+    currentUserName?: string,
+    branchId?: string | null,
+    currentUser?: User | null
   ): Promise<AbsenceLateReportData> {
-    const [
+    const effectiveBranch = currentUser
+      ? getEffectiveBranchId(currentUser, branchId)
+      : branchId && branchId !== "all"
+      ? branchId
+      : null;
+
+    let [
       classrooms,
       studyPackages,
       users,
@@ -33,10 +49,17 @@ export const absenceLateReportService = {
       studyPackageService.getStudyPackages(),
       userService.getUsers(),
       studentService.getStudents(),
-      enrollmentService.getEnrollments(),
+      enrollmentService.getEnrollments(effectiveBranch),
       attendanceService.getAttendance(),
       schoolHolidayService.getActiveSchoolHolidays(),
     ]);
+
+    if (effectiveBranch && effectiveBranch !== "all") {
+      classrooms = filterClassesByBranch(classrooms, effectiveBranch);
+      enrollments = filterEnrollmentsByBranch(enrollments, classrooms, students, effectiveBranch);
+      students = filterStudentsByBranch(students, enrollments, classrooms, effectiveBranch);
+      attendance = filterAttendanceByBranch(attendance, classrooms, effectiveBranch);
+    }
 
     return calculateAbsenceLateReport({
       filters,

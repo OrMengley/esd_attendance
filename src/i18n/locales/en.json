@@ -71,7 +71,8 @@
     "exportExcel": "Export Excel",
     "clearFilters": "Clear Filters",
     "systemUser": "System",
-    "userNotFound": "User no longer exists"
+    "userNotFound": "User no longer exists",
+    "unauthorized": "You do not have permission to perform this action."
   },
   "roles": {
     "super_admin": "Super Admin",

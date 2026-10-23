@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +58,7 @@ import {
 
 export const ClassroomDetailPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
@@ -74,9 +76,15 @@ export const ClassroomDetailPage: React.FC = () => {
     if (!id) return;
     setIsLoading(true);
     try {
-      const cls = await classroomService.getClassroomById(id);
+      const cls = await classroomService.getClassroomById(id, user);
       if (!cls) {
         toast.error(t("classes.classroomNotFound"));
+        navigate("/classes");
+        return;
+      }
+
+      if (user?.role === "admin" && user.branchId && cls.branchId !== user.branchId) {
+        toast.error(t("common.unauthorized", { defaultValue: "You are not authorized to view this classroom." }));
         navigate("/classes");
         return;
       }
@@ -87,8 +95,8 @@ export const ClassroomDetailPage: React.FC = () => {
         cls.packageId ? studyPackageService.getStudyPackageById(cls.packageId) : Promise.resolve(null),
         cls.assignedTeacherId ? userService.getUserById(cls.assignedTeacherId) : Promise.resolve(null),
         schoolHolidayService.getActiveSchoolHolidays(),
-        enrollmentService.getActiveEnrollmentsByClassroomId(cls.id),
-        studentService.getStudents(),
+        enrollmentService.getActiveEnrollmentsByClassroomId(cls.id, user),
+        studentService.getStudents(cls.branchId),
         cls.branchId ? branchService.getBranchById(cls.branchId) : Promise.resolve(null),
       ]);
 
@@ -106,13 +114,18 @@ export const ClassroomDetailPage: React.FC = () => {
       setHolidays(hols);
       setEnrolledStudents(enrolledItems);
       setActiveEnrollmentCount(activeEnrollments.length);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      if (err?.message?.includes("UNAUTHORIZED")) {
+        toast.error(t("common.unauthorized", { defaultValue: "You are not authorized to view this classroom." }));
+        navigate("/classes");
+        return;
+      }
       toast.error(t("classes.fetchError"));
     } finally {
       setIsLoading(false);
     }
-  }, [id, navigate, t]);
+  }, [id, user, navigate, t]);
 
   const progressMetrics = useMemo(() => {
     if (!classroom || !studyPackage) return null;

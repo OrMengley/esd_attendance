@@ -30,6 +30,7 @@ import { Classroom } from "@/models/classroom.model";
 import { StudyPackage } from "@/models/study-package.model";
 import { User } from "@/models/user.model";
 import { useAuth } from "@/contexts/auth-context";
+import { isStudentInBranch } from "@/lib/branch-scoping";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -93,16 +94,22 @@ export const StudentDetailPage: React.FC = () => {
     setIsLoading(true);
     try {
       const [std, enrList, clsList, pkgList, usrList, trList] = await Promise.all([
-        studentService.getStudentById(id),
-        enrollmentService.getEnrollmentsByStudentId(id),
+        studentService.getStudentById(id, user),
+        enrollmentService.getEnrollmentsByStudentId(id, user),
         classroomService.getClassrooms(),
         studyPackageService.getStudyPackages(),
         userService.getUsers(),
-        enrollmentService.getTransfersByStudentId(id),
+        enrollmentService.getTransfersByStudentId(id, user),
       ]);
 
       if (!std) {
         toast.error(t("students.noStudentsTitle"));
+        navigate("/students");
+        return;
+      }
+
+      if (user?.role === "admin" && user.branchId && !isStudentInBranch(std, enrList, clsList, user.branchId)) {
+        toast.error(t("common.unauthorized", { defaultValue: "You are not authorized to view this student." }));
         navigate("/students");
         return;
       }
@@ -132,13 +139,18 @@ export const StudentDetailPage: React.FC = () => {
         setActivePackage(null);
         setActiveTeacher(null);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to load student details:", e);
+      if (e?.message?.includes("UNAUTHORIZED")) {
+        toast.error(t("common.unauthorized", { defaultValue: "You are not authorized to view this student." }));
+        navigate("/students");
+        return;
+      }
       toast.error(t("students.fetchError"));
     } finally {
       setIsLoading(false);
     }
-  }, [id, navigate, t]);
+  }, [id, user, navigate, t]);
 
   useEffect(() => {
     loadData();

@@ -123,8 +123,13 @@ export const router = createBrowserRouter([
                 element: <ClassroomDetailPage />,
               },
               {
-                path: "branches",
-                element: <BranchesPage />,
+                element: <ProtectedRoute allowedRoles={["super_admin"]} />,
+                children: [
+                  {
+                    path: "branches",
+                    element: <BranchesPage />,
+                  },
+                ],
               },
               {
                 path: "holidays",

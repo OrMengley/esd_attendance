@@ -60,10 +60,12 @@ export const StudentsListPage: React.FC = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      const effectiveBranch =
+        user?.role === "super_admin" ? (isAllBranches ? null : currentBranchId) : user?.branchId;
       const [stdList, clsList, enrList] = await Promise.all([
-        studentService.getStudents(),
-        classroomService.getClassrooms(),
-        enrollmentService.getEnrollments(),
+        studentService.getStudents(effectiveBranch),
+        classroomService.getClassrooms(effectiveBranch),
+        enrollmentService.getEnrollments(user, currentBranchId),
       ]);
       setStudents(stdList);
       setClassrooms(clsList);

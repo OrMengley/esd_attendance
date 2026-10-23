@@ -58,14 +58,18 @@ export const UsersPage: React.FC = () => {
     try {
       const [allUsers, clsList] = await Promise.all([
         userService.getUsers(),
-        classroomService.getClassrooms(),
+        classroomService.getClassrooms(currentBranchId),
       ]);
 
-      // If current user is admin, only show teachers
-      const visibleUsers =
-        currentUser?.role === "admin"
-          ? allUsers.filter((u) => u.role === "teacher")
-          : allUsers;
+      // If current user is admin, only show teachers in their branch
+      let visibleUsers = allUsers;
+      if (currentUser?.role === "admin") {
+        visibleUsers = allUsers.filter(
+          (u) => u.role === "teacher" && u.branchId === currentUser.branchId
+        );
+      } else if (currentBranchId && currentBranchId !== "all") {
+        visibleUsers = filterUsersByBranch(allUsers, currentBranchId);
+      }
 
       setUsers(visibleUsers);
       setClassrooms(clsList);
@@ -75,7 +79,7 @@ export const UsersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentUser, t]);
+  }, [currentUser, currentBranchId, t]);
 
   useEffect(() => {
     loadData();

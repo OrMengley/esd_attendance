@@ -4,9 +4,11 @@ export interface EnrollmentTransfer {
 
   sourceEnrollmentId: string;
   sourceClassroomId: string;
+  sourceBranchId?: string;
 
   targetEnrollmentId: string;
   targetClassroomId: string;
+  targetBranchId?: string;
 
   packageId: string;
   effectiveDate: string;

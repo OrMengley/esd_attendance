@@ -180,7 +180,7 @@ export const EnrollStudentDialog: React.FC<EnrollStudentDialogProps> = ({
           status: "active",
           note: note.trim(),
         },
-        user?.id
+        user
       );
 
       toast.success(t("enrollments.enrollSuccess"));
@@ -188,7 +188,9 @@ export const EnrollStudentDialog: React.FC<EnrollStudentDialogProps> = ({
       onOpenChange(false);
     } catch (err: any) {
       console.error("Failed to enroll student:", err);
-      if (err.message === "CLASS_CAPACITY_FULL") {
+      if (err.message === "UNAUTHORIZED_BRANCH") {
+        toast.error(t("common.unauthorizedBranch", { defaultValue: "មិនមានសិទ្ធិចាត់ចែងសាខានេះទេ (Unauthorized branch)" }));
+      } else if (err.message === "CLASS_CAPACITY_FULL") {
         toast.error(t("enrollments.capacityFullError"));
       } else if (err.message === "ACTIVE_ENROLLMENT_EXISTS") {
         toast.error(t("enrollment.activeExists"));

@@ -173,13 +173,15 @@ export const EditEnrollmentDialog: React.FC<EditEnrollmentDialogProps> = ({
         updates.packageId = currentSelectedClass.packageId;
       }
 
-      await enrollmentService.updateEnrollment(enrollment.id, updates, user?.id);
+      await enrollmentService.updateEnrollment(enrollment.id, updates, user);
       toast.success(t("enrollments.updateSuccess"));
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
       console.error("Failed to update enrollment:", err);
-      if (err.message === "CLASS_CAPACITY_FULL") {
+      if (err.message === "UNAUTHORIZED_BRANCH") {
+        toast.error(t("common.unauthorizedBranch", { defaultValue: "មិនមានសិទ្ធិចាត់ចែងសាខានេះទេ (Unauthorized branch)" }));
+      } else if (err.message === "CLASS_CAPACITY_FULL") {
         toast.error(t("enrollments.capacityFullError"));
       } else if (err.message === "CLASSROOM_NOT_ACTIVE") {
         toast.error(t("classroom.notActive", { defaultValue: "Target class is not active" }));

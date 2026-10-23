@@ -4,10 +4,12 @@ import {
   getDoc,
   addDoc,
   updateDoc,
+  deleteDoc,
   doc,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { Classroom, ClassroomStatus } from "../models/classroom.model";
+import { User } from "../models/user.model";
 import { initialMockClassrooms } from "../data/classrooms.mock";
 import {
   calculateSessionMinutes,
@@ -36,39 +38,72 @@ function saveLocalClassrooms(classrooms: Classroom[]) {
 
 export const classroomService = {
   /**
-   * Fetch all classrooms from Firestore with local fallback
+   * Fetch all classrooms from Firestore with local fallback, optionally filtered by branchId
    */
-  async getClassrooms(): Promise<Classroom[]> {
+  async getClassrooms(branchId?: string | null): Promise<Classroom[]> {
+    let items: Classroom[] = [];
     try {
       const snap = await getDocs(collection(db, "classrooms"));
       if (!snap.empty) {
-        const items = snap.docs.map((d) => ({
+        items = snap.docs.map((d) => ({
           id: d.id,
           ...d.data(),
         })) as Classroom[];
         saveLocalClassrooms(items);
-        return items;
+      } else {
+        items = getLocalClassrooms();
       }
     } catch (e) {
       console.warn("Firestore getClassrooms fallback to local:", e);
+      items = getLocalClassrooms();
     }
-    return getLocalClassrooms();
+
+    if (branchId && branchId !== "all") {
+      return items.filter((c) => c.branchId === branchId);
+    }
+    return items;
   },
 
   /**
-   * Fetch single classroom by document ID
+   * Fetch single classroom by document ID with authorization check
    */
-  async getClassroomById(id: string): Promise<Classroom | null> {
+  async getClassroomById(
+    id: string,
+    currentUser?: User | null
+  ): Promise<Classroom | null> {
+    let classroom: Classroom | null = null;
     try {
       const snap = await getDoc(doc(db, "classrooms", id));
       if (snap.exists()) {
-        return { id: snap.id, ...snap.data() } as Classroom;
+        classroom = { id: snap.id, ...snap.data() } as Classroom;
       }
     } catch (e) {
       console.warn("Firestore getClassroomById fallback to local:", e);
     }
-    const local = getLocalClassrooms();
-    return local.find((c) => c.id === id) || null;
+
+    if (!classroom) {
+      const local = getLocalClassrooms();
+      classroom = local.find((c) => c.id === id) || null;
+    }
+
+    if (!classroom) return null;
+
+    // Authorization verification
+    if (currentUser && currentUser.role !== "super_admin") {
+      if (currentUser.role === "admin" && classroom.branchId && classroom.branchId !== currentUser.branchId) {
+        return null;
+      }
+      if (currentUser.role === "teacher") {
+        const isAssigned =
+          classroom.assignedTeacherId === currentUser.id ||
+          currentUser.assignedClassroomIds?.includes(classroom.id);
+        if (!isAssigned) {
+          return null;
+        }
+      }
+    }
+
+    return classroom;
   },
 
   /**
@@ -80,12 +115,28 @@ export const classroomService = {
   },
 
   /**
-   * Create a new classroom in Firestore
+   * Create a new classroom in Firestore with branch authorization
    */
   async createClassroom(
     data: Omit<Classroom, "id" | "createdAt" | "updatedAt">,
-    currentUserId?: string
+    currentUserIdOrUser?: string | User | null,
+    currentUserParam?: User | null
   ): Promise<Classroom> {
+    const user = typeof currentUserIdOrUser === "object" ? currentUserIdOrUser : currentUserParam;
+    const currentUserId = typeof currentUserIdOrUser === "string" ? currentUserIdOrUser : (user?.id || "system");
+
+    // Enforce branch isolation for non-super_admins
+    let branchId = data.branchId;
+    if (user && user.role !== "super_admin") {
+      if (!user.branchId) {
+        throw new Error("UNAUTHORIZED_BRANCH");
+      }
+      if (data.branchId && data.branchId !== user.branchId) {
+        throw new Error("UNAUTHORIZED_BRANCH");
+      }
+      branchId = user.branchId;
+    }
+
     const cleanCode = data.code.trim().toUpperCase();
     const existing = await this.getClassrooms();
     const codeExists = existing.some(
@@ -104,6 +155,7 @@ export const classroomService = {
     const now = new Date().toISOString();
     const newClassroomData: Omit<Classroom, "id"> = {
       ...data,
+      branchId,
       code: cleanCode,
       name: data.name.trim(),
       packageId: data.packageId,
@@ -147,17 +199,36 @@ export const classroomService = {
   },
 
   /**
-   * Update an existing classroom
+   * Update an existing classroom with branch authorization
    */
   async updateClassroom(
     id: string,
     data: Partial<Classroom>,
-    currentUserId?: string
+    currentUserIdOrUser?: string | User | null,
+    currentUserParam?: User | null
   ): Promise<Classroom> {
+    const user = typeof currentUserIdOrUser === "object" ? currentUserIdOrUser : currentUserParam;
+    const currentUserId = typeof currentUserIdOrUser === "string" ? currentUserIdOrUser : (user?.id || "system");
+
+    const existing = await this.getClassroomById(id);
+    if (!existing) {
+      throw new Error("CLASSROOM_NOT_FOUND");
+    }
+
+    // Branch authorization check
+    if (user && user.role !== "super_admin") {
+      if (existing.branchId && existing.branchId !== user.branchId) {
+        throw new Error("UNAUTHORIZED_BRANCH");
+      }
+      if (data.branchId && data.branchId !== existing.branchId) {
+        throw new Error("BRANCH_REASSIGNMENT_NOT_ALLOWED");
+      }
+    }
+
     if (data.code) {
       const cleanCode = data.code.trim().toUpperCase();
-      const existing = await this.getClassrooms();
-      const codeExists = existing.some(
+      const existingList = await this.getClassrooms();
+      const codeExists = existingList.some(
         (c) => c.id !== id && c.code.trim().toUpperCase() === cleanCode
       );
       if (codeExists) {
@@ -207,17 +278,47 @@ export const classroomService = {
   },
 
   /**
+   * Delete classroom with authorization check
+   */
+  async deleteClassroom(
+    id: string,
+    currentUser?: User | null
+  ): Promise<void> {
+    const existing = await this.getClassroomById(id);
+    if (!existing) {
+      throw new Error("CLASSROOM_NOT_FOUND");
+    }
+
+    if (currentUser && currentUser.role !== "super_admin") {
+      if (existing.branchId && existing.branchId !== currentUser.branchId) {
+        throw new Error("UNAUTHORIZED_BRANCH");
+      }
+    }
+
+    try {
+      await deleteDoc(doc(db, "classrooms", id));
+    } catch (e) {
+      console.warn("Firestore deleteClassroom fallback to local:", e);
+    }
+
+    const local = getLocalClassrooms();
+    saveLocalClassrooms(local.filter((c) => c.id !== id));
+  },
+
+  /**
    * Set status of a classroom (active, completed, inactive)
    */
   async setClassroomStatus(
     id: string,
     status: ClassroomStatus,
-    currentUserId?: string
+    currentUserId?: string,
+    currentUser?: User | null
   ): Promise<Classroom> {
     const updates: Partial<Classroom> = { status };
     if (status === "completed") {
       updates.actualEndDate = new Date().toISOString().split("T")[0];
     }
-    return this.updateClassroom(id, updates, currentUserId);
+    return this.updateClassroom(id, updates, currentUserId, currentUser);
   },
 };
+

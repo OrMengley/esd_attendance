@@ -60,13 +60,11 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const currentBranchId = useMemo(() => {
     if (isLockedToBranch) {
       // Non-super-admins (admin, teacher) are strictly locked to their assigned branch
-      if (user?.branchId) return user.branchId;
-      // Fallback if not assigned: default to first active branch
-      return branches[0]?.id || "";
+      return user?.branchId || "";
     }
 
     return selectedBranchId;
-  }, [isLockedToBranch, user?.branchId, selectedBranchId, branches]);
+  }, [isLockedToBranch, user?.branchId, selectedBranchId]);
 
   const setBranchId = (branchId: string) => {
     if (isLockedToBranch) return; // Only super admin can change branches

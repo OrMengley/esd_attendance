@@ -56,6 +56,8 @@ const EN_MONTH_NAMES = [
 const KHMER_DAY_NAMES = ["", "ចន្ទ", "អង្គារ", "ពុធ", "ព្រហ", "សុក្រ", "សៅរ៍", "អាទិត្យ"];
 const EN_DAY_NAMES = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+import { User } from "@/models/user.model";
+
 export const attendanceReportService = {
   /**
    * Generates complete monthly attendance report data for a specific classroom and month (YYYY-MM).
@@ -63,7 +65,8 @@ export const attendanceReportService = {
   async generateMonthlyReport(
     classroomId: string,
     yearMonth: string,
-    currentUserName?: string
+    currentUserName?: string,
+    currentUser?: User | null
   ): Promise<MonthlyAttendanceReportData> {
     const [yearStr, monthStr] = yearMonth.split("-");
     const year = parseInt(yearStr, 10);
@@ -80,17 +83,21 @@ export const attendanceReportService = {
     // Parallel fetch required data
     const [classroom, allPackages, allUsers, allStudents, allEnrollments, allAttendance, activeHolidays] =
       await Promise.all([
-        classroomService.getClassroomById(classroomId),
+        classroomService.getClassroomById(classroomId, currentUser),
         studyPackageService.getStudyPackages(),
         userService.getUsers(),
         studentService.getStudents(),
-        enrollmentService.getEnrollmentsByClassroomId(classroomId),
+        enrollmentService.getEnrollmentsByClassroomId(classroomId, currentUser),
         attendanceService.getAttendance(),
         schoolHolidayService.getActiveSchoolHolidays(),
       ]);
 
     if (!classroom) {
       throw new Error("CLASSROOM_NOT_FOUND");
+    }
+
+    if (currentUser?.role === "admin" && currentUser.branchId && classroom.branchId !== currentUser.branchId) {
+      throw new Error("UNAUTHORIZED_CLASSROOM_ACCESS");
     }
 
     const studyPackage = allPackages.find((p) => p.id === classroom.packageId) || null;

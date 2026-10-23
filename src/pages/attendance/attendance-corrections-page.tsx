@@ -55,17 +55,26 @@ export const AttendanceCorrectionsPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [currentBranchId]);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
       const [attList, classList, studentList, userList] = await Promise.all([
         attendanceService.getAttendance(),
-        classroomService.getClassrooms(),
+        classroomService.getClassrooms(currentBranchId),
         studentService.getStudents(),
         userService.getUsers(),
       ]);
+
+      const scopedClasses = (currentBranchId && currentBranchId !== "all")
+        ? classList.filter((c) => c.branchId === currentBranchId)
+        : classList;
+      const scopedClassIds = new Set(scopedClasses.map((c) => c.id));
+
+      const scopedAttList = (currentBranchId && currentBranchId !== "all")
+        ? attList.filter((a) => scopedClassIds.has(a.classroomId))
+        : attList;
 
       const studentMap = new Map<string, Student>();
       studentList.forEach((s) => studentMap.set(s.id, s));
@@ -74,12 +83,14 @@ export const AttendanceCorrectionsPage: React.FC = () => {
       classList.forEach((c) => classMap.set(c.id, c));
 
       const teacherUsers = userList.filter(
-        (u) => u.role === "teacher" || u.role === "admin" || u.role === "super_admin"
+        (u) =>
+          (u.role === "teacher" || u.role === "admin" || u.role === "super_admin") &&
+          (!currentBranchId || currentBranchId === "all" || u.role === "super_admin" || u.branchId === currentBranchId)
       );
       const teacherMap = new Map<string, User>();
       userList.forEach((u) => teacherMap.set(u.id, u));
 
-      const enriched: AttendanceWithDetails[] = attList.map((att) => {
+      const enriched: AttendanceWithDetails[] = scopedAttList.map((att) => {
         const cls = classMap.get(att.classroomId);
         const st = studentMap.get(att.studentId);
         const tc = cls?.assignedTeacherId ? teacherMap.get(cls.assignedTeacherId) : undefined;
@@ -98,7 +109,7 @@ export const AttendanceCorrectionsPage: React.FC = () => {
       );
 
       setRecords(enriched);
-      setClassrooms(classList);
+      setClassrooms(scopedClasses);
       setStudents(studentList);
       setTeachers(teacherUsers);
     } catch (e) {

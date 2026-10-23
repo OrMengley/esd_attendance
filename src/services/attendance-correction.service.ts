@@ -155,13 +155,21 @@ export const attendanceCorrectionService = {
       params.student ? Promise.resolve(params.student) : studentService.getStudentById(studentId),
       params.enrollment
         ? Promise.resolve([params.enrollment])
-        : enrollmentService.getEnrollmentsByClassroomId(classroomId),
+        : enrollmentService.getEnrollmentsByClassroomId(classroomId, currentUser),
       schoolHolidayService.getActiveSchoolHolidays(),
     ]);
 
     if (!classroom) {
       throw new Error("CLASSROOM_NOT_FOUND");
     }
+
+    // Branch authorization check for admin
+    if (currentUser.role === "admin") {
+      if (classroom.branchId && classroom.branchId !== currentUser.branchId) {
+        throw new Error("UNAUTHORIZED_BRANCH");
+      }
+    }
+
     if (!student) {
       throw new Error("STUDENT_NOT_FOUND");
     }

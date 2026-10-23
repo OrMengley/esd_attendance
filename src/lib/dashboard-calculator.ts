@@ -46,13 +46,13 @@ export function calculateDashboardData(params: CalculateDashboardParams): Dashbo
     users: rawUsers,
     enrollments: rawEnrollments,
     students,
-    attendance,
+    attendance: rawAttendance,
     holidays,
     branchId,
     currentDateTime,
   } = params;
 
-  // Branch Scoping: filter classrooms, enrollments, and users by branch if specified
+  // Branch Scoping: filter classrooms, enrollments, users, and attendance by branch if specified
   const classrooms = (branchId && branchId !== "all")
     ? rawClassrooms.filter((c) => c.branchId === branchId)
     : rawClassrooms;
@@ -66,6 +66,10 @@ export function calculateDashboardData(params: CalculateDashboardParams): Dashbo
   const users = (branchId && branchId !== "all")
     ? rawUsers.filter((u) => u.role !== "teacher" || u.branchId === branchId)
     : rawUsers;
+
+  const attendance = (branchId && branchId !== "all")
+    ? rawAttendance.filter((a) => branchClassIds.has(a.classroomId))
+    : rawAttendance;
 
   const cambodiaToday = currentDateTime.dateStr;
   const cambodiaNow = currentDateTime.timeStr;

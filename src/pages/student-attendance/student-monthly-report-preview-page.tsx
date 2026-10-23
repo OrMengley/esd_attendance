@@ -72,6 +72,12 @@ export const StudentMonthlyReportPreviewPage: React.FC = () => {
         currentUser: user,
       });
 
+      if (user?.role === "admin" && user.branchId && data.classroom.branchId !== user.branchId) {
+        setIsUnauthorized(true);
+        setIsLoading(false);
+        return;
+      }
+
       setReportData(data);
     } catch (e: any) {
       console.error("Failed to load student monthly report:", e);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranch } from "@/contexts/branch-context";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -42,6 +43,7 @@ const DEFAULT_FILTERS: ClassProgressFilters = {
 export const ClassProgressReportPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
+  const { currentBranchId } = useBranch();
   const navigate = useNavigate();
 
   // Role validation: super_admin and admin only
@@ -75,7 +77,7 @@ export const ClassProgressReportPage: React.FC = () => {
     const loadDropdownData = async () => {
       try {
         const [activeTeachers, pList] = await Promise.all([
-          userService.getActiveTeachers(),
+          userService.getActiveTeachers(currentBranchId),
           studyPackageService.getStudyPackages(),
         ]);
 
@@ -101,7 +103,7 @@ export const ClassProgressReportPage: React.FC = () => {
     };
 
     loadDropdownData();
-  }, [isAuthorized]);
+  }, [isAuthorized, currentBranchId]);
 
   // Fetch report data
   const fetchReport = useCallback(
@@ -113,7 +115,9 @@ export const ClassProgressReportPage: React.FC = () => {
       try {
         const data = await classProgressReportService.generateReport(
           filters,
-          user?.name
+          user?.name,
+          currentBranchId,
+          user
         );
         setReportData(data);
       } catch (err) {
@@ -125,7 +129,7 @@ export const ClassProgressReportPage: React.FC = () => {
         }
       }
     },
-    [filters, isAuthorized, user?.name, t]
+    [filters, isAuthorized, user, currentBranchId, t]
   );
 
   useEffect(() => {

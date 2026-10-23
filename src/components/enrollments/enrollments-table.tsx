@@ -124,38 +124,40 @@ export const EnrollmentsTable: React.FC<EnrollmentsTableProps> = ({
         await enrollmentService.setEnrollmentStatus(
           targetEnrollment.id,
           "completed",
-          user?.id
+          user
         );
         toast.success(t("enrollments.statusUpdateSuccess"));
       } else if (actionType === "pause") {
         await enrollmentService.setEnrollmentStatus(
           targetEnrollment.id,
           "paused",
-          user?.id
+          user
         );
         toast.success(t("enrollments.statusUpdateSuccess"));
       } else if (actionType === "resume") {
         await enrollmentService.setEnrollmentStatus(
           targetEnrollment.id,
           "active",
-          user?.id
+          user
         );
         toast.success(t("enrollments.statusUpdateSuccess"));
       } else if (actionType === "cancel") {
         await enrollmentService.setEnrollmentStatus(
           targetEnrollment.id,
           "cancelled",
-          user?.id
+          user
         );
         toast.success(t("enrollments.statusUpdateSuccess"));
       } else if (actionType === "delete") {
-        await enrollmentService.deleteEnrollment(targetEnrollment.id);
+        await enrollmentService.deleteEnrollment(targetEnrollment.id, user);
         toast.success(t("enrollments.deleteSuccess"));
       }
       onRefresh();
     } catch (err: any) {
       console.error("Action error:", err);
-      if (err.message === "ACTIVE_ENROLLMENT_EXISTS") {
+      if (err.message === "UNAUTHORIZED_BRANCH") {
+        toast.error(t("common.unauthorizedBranch", { defaultValue: "មិនមានសិទ្ធិចាត់ចែងសាខានេះទេ (Unauthorized branch)" }));
+      } else if (err.message === "ACTIVE_ENROLLMENT_EXISTS") {
         toast.error(t("enrollment.activeExists", { defaultValue: "Student already has another active enrollment" }));
       } else {
         toast.error(t("common.errorOccurred", { defaultValue: "Action failed" }));

@@ -36,13 +36,17 @@ export const userService = {
   },
 
   /**
-   * Fetch users filtered by role from Firestore
+   * Fetch users filtered by role from Firestore, optionally filtered by branchId
    */
-  async getUsersByRole(role: UserRole): Promise<User[]> {
+  async getUsersByRole(role: UserRole, branchId?: string | null): Promise<User[]> {
     try {
       const q = query(collection(db, "users"), where("role", "==", role));
       const snap = await getDocs(q);
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() } as User));
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as User));
+      if (branchId && branchId !== "all") {
+        return list.filter((u) => u.branchId === branchId);
+      }
+      return list;
     } catch (e) {
       console.error(`Firestore getUsersByRole(${role}) error:`, e);
       throw e;
@@ -52,15 +56,15 @@ export const userService = {
   /**
    * Convenience method to fetch teacher users
    */
-  async getTeachers(): Promise<User[]> {
-    return this.getUsersByRole("teacher");
+  async getTeachers(branchId?: string | null): Promise<User[]> {
+    return this.getUsersByRole("teacher", branchId);
   },
 
   /**
    * Convenience method to fetch active teacher users sorted alphabetically by name
    */
-  async getActiveTeachers(): Promise<User[]> {
-    const teachers = await this.getTeachers();
+  async getActiveTeachers(branchId?: string | null): Promise<User[]> {
+    const teachers = await this.getTeachers(branchId);
     return teachers
       .filter((u) => u.role === "teacher" && u.status === "active")
       .sort((a, b) =>
@@ -143,6 +147,16 @@ export const userService = {
       };
     }
 
+    // Role & branch authorization for non-super-admins
+    if (currentUser && currentUser.role !== "super_admin") {
+      if (userData.role !== "teacher") {
+        return { success: false, error: "UNAUTHORIZED_ROLE" };
+      }
+      if (!currentUser.branchId || (userData.branchId && userData.branchId !== currentUser.branchId)) {
+        return { success: false, error: "UNAUTHORIZED_BRANCH" };
+      }
+    }
+
     const now = new Date().toISOString();
     const cleanData: Omit<User, "id"> = {
       name: userData.name.trim(),
@@ -152,7 +166,9 @@ export const userService = {
       phone: userData.phone?.trim() || "",
       role: userData.role,
       avatarUrl: userData.avatarUrl || "",
-      branchId: userData.branchId?.trim() || "",
+      branchId: (currentUser && currentUser.role !== "super_admin")
+        ? (currentUser.branchId || "")
+        : (userData.branchId?.trim() || ""),
       assignedClassroomIds: userData.assignedClassroomIds || [],
       status: userData.status || "active",
       lastLogin: "",
@@ -184,6 +200,27 @@ export const userService = {
     userData: Partial<User>,
     currentUser?: User | null
   ): Promise<{ success: boolean; user?: User; error?: string }> {
+    const targetUser = await this.getUserById(id);
+    if (!targetUser) {
+      return { success: false, error: "userNotFound" };
+    }
+
+    // Branch authorization check for non-super-admins
+    if (currentUser && currentUser.role !== "super_admin") {
+      if (targetUser.branchId && targetUser.branchId !== currentUser.branchId) {
+        return { success: false, error: "UNAUTHORIZED_BRANCH" };
+      }
+      if (targetUser.role !== "teacher" && targetUser.id !== currentUser.id) {
+        return { success: false, error: "UNAUTHORIZED_ROLE" };
+      }
+      if (userData.role && userData.role !== "teacher" && targetUser.role === "teacher") {
+        return { success: false, error: "UNAUTHORIZED_ROLE" };
+      }
+      if (userData.branchId && userData.branchId !== targetUser.branchId) {
+        return { success: false, error: "BRANCH_REASSIGNMENT_NOT_ALLOWED" };
+      }
+    }
+
     // If username is being changed, check for duplicate excluding current user ID
     if (userData.username) {
       const trimmedUsername = userData.username.trim();
@@ -249,6 +286,16 @@ export const userService = {
     const targetUser = await this.getUserById(id);
     if (!targetUser) {
       return { success: false, error: "userNotFound" };
+    }
+
+    // Branch authorization check for non-super-admins
+    if (currentUser && currentUser.role !== "super_admin") {
+      if (targetUser.branchId && targetUser.branchId !== currentUser.branchId) {
+        return { success: false, error: "UNAUTHORIZED_BRANCH" };
+      }
+      if (targetUser.role !== "teacher") {
+        return { success: false, error: "cannotDeleteAdmin" };
+      }
     }
 
     // Safety 1: Cannot delete super_admin

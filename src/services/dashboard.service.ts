@@ -7,6 +7,7 @@ import { attendanceService } from "./attendance.service";
 import { schoolHolidayService } from "./school-holiday.service";
 import { getCambodiaDateTime } from "@/lib/attendance-time-lock";
 import { calculateDashboardData } from "@/lib/dashboard-calculator";
+import { getEffectiveBranchId } from "@/lib/branch-scoping";
 import { DashboardData } from "@/models/dashboard.model";
 import { User } from "@/models/user.model";
 
@@ -15,6 +16,7 @@ export const dashboardService = {
    * Fetches required collections in parallel (no N+1 reads) and returns role-scoped dashboard data.
    */
   async getDashboardData(currentUser: User, branchId?: string | null): Promise<DashboardData> {
+    const effectiveBranchId = getEffectiveBranchId(currentUser, branchId);
     const [
       classrooms,
       packages,
@@ -27,7 +29,7 @@ export const dashboardService = {
       classroomService.getClassrooms(),
       studyPackageService.getStudyPackages(),
       userService.getUsers(),
-      enrollmentService.getEnrollments(),
+      enrollmentService.getEnrollments(currentUser, effectiveBranchId),
       studentService.getStudents(),
       attendanceService.getAttendance(),
       schoolHolidayService.getActiveSchoolHolidays(),
@@ -44,7 +46,7 @@ export const dashboardService = {
       students,
       attendance,
       holidays,
-      branchId,
+      branchId: effectiveBranchId,
       currentDateTime,
     });
   },

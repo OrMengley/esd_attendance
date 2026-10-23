@@ -124,9 +124,15 @@ export const StudentFormPage: React.FC<StudentFormPageProps> = ({ mode }) => {
   const loadStudentData = async (studentId: string) => {
     setIsLoading(true);
     try {
-      const student = await studentService.getStudentById(studentId);
+      const student = await studentService.getStudentById(studentId, user);
       if (!student) {
         toast.error(t("students.noStudentsTitle"));
+        navigate("/students");
+        return;
+      }
+
+      if (user?.role === "admin" && user.branchId && student.branchId && student.branchId !== user.branchId) {
+        toast.error(t("common.unauthorized", { defaultValue: "You are not authorized to edit this student." }));
         navigate("/students");
         return;
       }
@@ -248,7 +254,7 @@ export const StudentFormPage: React.FC<StudentFormPageProps> = ({ mode }) => {
       if (mode === "create") {
         const created = await studentService.createStudent(
           studentPayload,
-          user?.id
+          user
         );
         toast.success(t("students.created"));
         // Redirect to detail page
@@ -257,14 +263,16 @@ export const StudentFormPage: React.FC<StudentFormPageProps> = ({ mode }) => {
         const updated = await studentService.updateStudent(
           id,
           studentPayload,
-          user?.id
+          user
         );
         toast.success(t("students.updated"));
         navigate(`/students/${updated.id}`);
       }
     } catch (err: any) {
       console.error("Save error:", err);
-      if (err.message === "STUDENT_CODE_EXISTS") {
+      if (err.message?.includes("UNAUTHORIZED")) {
+        toast.error(t("common.unauthorized", { defaultValue: "You are not authorized to perform this operation." }));
+      } else if (err.message === "STUDENT_CODE_EXISTS") {
         toast.error(t("students.studentCodeExists"));
       } else {
         toast.error(err.message || t("students.saveError"));
@@ -458,7 +466,7 @@ export const StudentFormPage: React.FC<StudentFormPageProps> = ({ mode }) => {
                     <span>{t("branches.branch", { defaultValue: "សាខា" })}</span>
                     <span className="text-rose-500">*</span>
                   </Label>
-                  <Select value={branchId} onValueChange={setBranchId} disabled={!isAllBranches}>
+                  <Select value={branchId} onValueChange={setBranchId} disabled={!isAllBranches || user?.role !== "super_admin"}>
                     <SelectTrigger className="text-xs sm:text-sm h-9 bg-background font-khmer">
                       <SelectValue placeholder={t("branches.selectBranchPlaceholder", { defaultValue: "ជ្រើសរើសសាខាសាលា..." })} />
                     </SelectTrigger>

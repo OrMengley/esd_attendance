@@ -4,18 +4,24 @@
 A school management and attendance web application. The provided source tree indicates a broad administration workflow rather than a minimal attendance-only tool.
 
 ## Observed Feature Areas
-- Dashboard views for administrators and teachers
-- Student list, create/edit forms, details, and enrollment history
-- Classrooms and class schedules/details
-- Study packages and course modules
-- Daily attendance and student attendance history/details
-- Attendance reports and monthly report previews
-- Daily attendance summary
-- Attendance corrections and correction audit logs
-- Absence/late reports and class-progress reports, including print views
-- School holidays and settings
-- User administration and role-aware navigation
-- English and Khmer interface localization
+> Detailed documentation is available in [docs/FEATURES.md](file:///Users/kerker/Documents/reactProjects/esd_attendance/docs/FEATURES.md).
+
+- Multi-branch campus management and global branch switcher
+- Role-based dashboard views for administrators and teachers
+- Student directory, detailed profiles, and batch Excel student import
+- Classroom scheduling, capacity tracking, and quick student enrollment
+- Centralized enrollments management with clerical error correction
+- Study packages, course modules, and curriculum pacing
+- Real-time daily attendance taking with session time-locking
+- Daily attendance summary and status alerts
+- Attendance corrections with mandatory reasons and immutable audit logs
+- Monthly attendance matrix tables with printable views
+- Student individual attendance profiles and monthly cards
+- Absence/late warning reports and class progress reports with Excel export & print layouts
+- School holiday calendar management and vacation auto-exclusions
+- User administration with branch scoping and role permissions
+- 100% Khmer and English bilingual interface localization
+
 
 ## Roles Observed in Source
 `src/models/role.model.ts` defines `super_admin`, `admin`, and `teacher`. `src/routes/index.tsx` restricts several administration routes to `super_admin` and `admin`, while shared pages are available to authenticated users. Confirm actual permissions and data scoping in services and Firebase rules before changing access behavior.

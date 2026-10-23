@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranch } from "@/contexts/branch-context";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,7 @@ import { cn } from "@/lib/utils";
 export const StudentAttendanceListPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
+  const { currentBranchId } = useBranch();
   const navigate = useNavigate();
 
   const [studentsWithMeta, setStudentsWithMeta] = useState<StudentListItemWithMeta[]>([]);
@@ -60,14 +62,14 @@ export const StudentAttendanceListPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [user]);
+  }, [user, currentBranchId]);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
       const [list, allClasses] = await Promise.all([
-        studentAttendanceService.getPermittedStudentsList(user),
-        classroomService.getClassrooms(),
+        studentAttendanceService.getPermittedStudentsList(user, currentBranchId),
+        classroomService.getClassrooms(currentBranchId),
       ]);
 
       const accessibleClasses = isTeacher

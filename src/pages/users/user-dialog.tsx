@@ -302,7 +302,7 @@ export const UserDialog: React.FC<UserDialogProps> = ({
               <Label htmlFor="usr-branch" className="text-xs">
                 {t("branches.branch", { defaultValue: "សាខា" })} {role === "teacher" && <span className="text-destructive">*</span>}
               </Label>
-              <Select value={branchId || undefined} onValueChange={handleBranchChange}>
+              <Select value={branchId || undefined} onValueChange={handleBranchChange} disabled={!isSuperAdmin}>
                 <SelectTrigger id="usr-branch" className="font-khmer">
                   <SelectValue placeholder={t("branches.selectBranchPlaceholder", { defaultValue: "ជ្រើសរើសសាខាសាលា..." })} />
                 </SelectTrigger>

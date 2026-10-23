@@ -10,6 +10,7 @@ export interface Enrollment {
   studentId: string;
   classroomId: string;
   packageId: string;
+  branchId?: string;
 
   startDate: string;
   expectedEndDate: string;

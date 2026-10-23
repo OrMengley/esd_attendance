@@ -116,7 +116,7 @@ export const EnrollmentDialog: React.FC<EnrollmentDialogProps> = ({
           status: "active",
           note: note.trim(),
         },
-        user?.id
+        user
       );
 
       toast.success(t("enrollment.created"));
@@ -126,7 +126,9 @@ export const EnrollmentDialog: React.FC<EnrollmentDialogProps> = ({
       }
     } catch (err: any) {
       console.error("Enrollment failed:", err);
-      if (err.message === "ACTIVE_ENROLLMENT_EXISTS") {
+      if (err.message === "UNAUTHORIZED_BRANCH") {
+        toast.error(t("common.unauthorizedBranch", { defaultValue: "មិនមានសិទ្ធិចាត់ចែងសាខានេះទេ (Unauthorized branch)" }));
+      } else if (err.message === "ACTIVE_ENROLLMENT_EXISTS") {
         toast.error(t("enrollment.activeExists"));
       } else if (err.message === "CLASS_CAPACITY_FULL") {
         toast.error(t("enrollment.classFull"));

@@ -74,13 +74,17 @@ export const EnrolledStudentsCard: React.FC<EnrolledStudentsCardProps> = ({
       await enrollmentService.setEnrollmentStatus(
         enrollmentToCancel.enrollment.id,
         "cancelled",
-        user?.id
+        user
       );
       toast.success(t("classes.students.cancelEnrollmentSuccess"));
       onRefresh();
     } catch (err: any) {
       console.error("Failed to cancel enrollment:", err);
-      toast.error(err?.message || t("common.error"));
+      if (err.message === "UNAUTHORIZED_BRANCH") {
+        toast.error(t("common.unauthorizedBranch", { defaultValue: "មិនមានសិទ្ធិចាត់ចែងសាខានេះទេ (Unauthorized branch)" }));
+      } else {
+        toast.error(err?.message || t("common.error"));
+      }
     } finally {
       setIsCancelling(false);
       setEnrollmentToCancel(null);

@@ -78,10 +78,11 @@ export const AddStudentToClassDialog: React.FC<AddStudentToClassDialogProps> = (
   const loadData = async () => {
     setIsLoading(true);
     try {
+      const effectiveBranch = user?.role === "super_admin" ? (classroom.branchId || null) : user?.branchId;
       const [allStudents, allEnrollments, allClasses] = await Promise.all([
-        studentService.getStudents(),
-        enrollmentService.getEnrollments(),
-        classroomService.getClassrooms(),
+        studentService.getStudents(effectiveBranch),
+        enrollmentService.getEnrollments(user, classroom.branchId),
+        classroomService.getClassrooms(effectiveBranch),
       ]);
 
       setStudents(allStudents.filter((s) => s.status !== "archived"));
@@ -251,7 +252,7 @@ export const AddStudentToClassDialog: React.FC<AddStudentToClassDialogProps> = (
         note: note.trim(),
       }));
 
-      await enrollmentService.createEnrollments(enrollmentItems, user?.id);
+      await enrollmentService.createEnrollments(enrollmentItems, user);
 
       const successMsg =
         selectedStudents.length > 1
@@ -265,7 +266,9 @@ export const AddStudentToClassDialog: React.FC<AddStudentToClassDialogProps> = (
       onOpenChange(false);
     } catch (err: any) {
       console.error("Failed to enroll students:", err);
-      if (err.message === "ACTIVE_ENROLLMENT_EXISTS") {
+      if (err.message === "UNAUTHORIZED_BRANCH") {
+        toast.error(t("common.unauthorizedBranch", { defaultValue: "មិនមានសិទ្ធិចាត់ចែងសាខានេះទេ (Unauthorized branch)" }));
+      } else if (err.message === "ACTIVE_ENROLLMENT_EXISTS") {
         toast.error(t("enrollment.activeExists"));
       } else if (err.message === "CLASS_CAPACITY_FULL") {
         toast.error(t("enrollment.classFull"));

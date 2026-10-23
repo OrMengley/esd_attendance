@@ -13,6 +13,7 @@ import { Attendance, AttendanceStatus } from "../models/attendance.model";
 import { Student } from "../models/student.model";
 import { Enrollment } from "../models/enrollment.model";
 import { Classroom } from "../models/classroom.model";
+import { User } from "../models/user.model";
 import { studentService } from "./student.service";
 import { enrollmentService } from "./enrollment.service";
 import { canTeacherRecordAttendance } from "@/lib/attendance-time-lock";
@@ -189,11 +190,12 @@ export const attendanceService = {
    */
   async getEligibleStudentsForAttendance(
     classroomId: string,
-    attendanceDate: string
+    attendanceDate: string,
+    currentUser?: User | null
   ): Promise<{ student: Student; enrollment: Enrollment }[]> {
     const [allStudents, allEnrollments] = await Promise.all([
       studentService.getStudents(),
-      enrollmentService.getEnrollmentsByClassroomId(classroomId),
+      enrollmentService.getEnrollmentsByClassroomId(classroomId, currentUser),
     ]);
 
     const activeStudentsMap = new Map<string, Student>();
@@ -257,6 +259,7 @@ export const attendanceService = {
     }[];
     currentUserId?: string;
     currentUserRole?: string;
+    currentUserBranchId?: string;
   }): Promise<{ createdCount: number; updatedCount: number }> {
     const {
       classroom,
@@ -264,7 +267,15 @@ export const attendanceService = {
       records,
       currentUserId = "system",
       currentUserRole,
+      currentUserBranchId,
     } = params;
+
+    // Branch authorization check for admin role
+    if (currentUserRole === "admin" && currentUserBranchId) {
+      if (classroom.branchId && classroom.branchId !== currentUserBranchId) {
+        throw new Error("UNAUTHORIZED_BRANCH");
+      }
+    }
 
     // Service-level validation for teacher role and holiday checks
     const { schoolHolidayService } = await import("./school-holiday.service");

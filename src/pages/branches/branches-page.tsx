@@ -56,9 +56,9 @@ export const BranchesPage: React.FC = () => {
   const [branchToDelete, setBranchToDelete] = useState<Branch | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Redirect teachers immediately if they somehow access this page
+  // Redirect non-super-admins immediately
   useEffect(() => {
-    if (user && user.role === "teacher") {
+    if (user && user.role !== "super_admin") {
       navigate("/dashboard", { replace: true });
     }
   }, [user, navigate]);

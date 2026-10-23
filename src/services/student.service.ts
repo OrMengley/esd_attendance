@@ -11,7 +11,11 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { Student, StudentStatus } from "../models/student.model";
+import { User } from "../models/user.model";
 import { initialMockStudents } from "../data/students.mock";
+import { enrollmentService } from "./enrollment.service";
+import { classroomService } from "./classroom.service";
+import { isStudentInBranch } from "../lib/branch-scoping";
 
 const STUDENTS_STORAGE_KEY = "esd_local_students";
 
@@ -35,9 +39,10 @@ function saveLocalStudents(students: Student[]) {
 
 export const studentService = {
   /**
-   * Fetch all students from Firestore with local fallback
+   * Fetch all students from Firestore with local fallback, optionally filtered by branchId
    */
-  async getStudents(): Promise<Student[]> {
+  async getStudents(branchId?: string | null): Promise<Student[]> {
+    let sorted: Student[] = [];
     try {
       const snap = await getDocs(collection(db, "students"));
       if (!snap.empty) {
@@ -45,32 +50,65 @@ export const studentService = {
           (d) => ({ id: d.id, ...d.data() } as Student)
         );
         // Sort by studentCode
-        const sorted = firestoreList.sort((a, b) =>
+        sorted = firestoreList.sort((a, b) =>
           a.studentCode.localeCompare(b.studentCode, undefined, { numeric: true })
         );
         saveLocalStudents(sorted);
-        return sorted;
+      } else {
+        sorted = getLocalStudents();
       }
     } catch (e) {
       console.warn("Firestore getStudents fallback to local:", e);
+      sorted = getLocalStudents();
     }
-    return getLocalStudents();
+
+    if (branchId && branchId !== "all") {
+      return sorted.filter((s) => s.branchId === branchId);
+    }
+    return sorted;
   },
 
   /**
-   * Fetch single student by document ID
+   * Fetch single student by document ID with authorization check
    */
-  async getStudentById(id: string): Promise<Student | null> {
+  async getStudentById(
+    id: string,
+    currentUser?: User | null
+  ): Promise<Student | null> {
+    let student: Student | null = null;
     try {
       const snap = await getDoc(doc(db, "students", id));
       if (snap.exists()) {
-        return { id: snap.id, ...snap.data() } as Student;
+        student = { id: snap.id, ...snap.data() } as Student;
       }
     } catch (e) {
       console.warn("Firestore getStudentById fallback to local:", e);
     }
-    const local = getLocalStudents();
-    return local.find((s) => s.id === id) || null;
+    if (!student) {
+      const local = getLocalStudents();
+      student = local.find((s) => s.id === id) || null;
+    }
+    if (!student) return null;
+
+    // Authorization verification
+    if (currentUser && currentUser.role !== "super_admin") {
+      if (currentUser.role === "admin") {
+        if (student.branchId && student.branchId === currentUser.branchId) {
+          return student;
+        }
+        // Also check if enrolled in any class in user's branch
+        const [enrs, classes] = await Promise.all([
+          enrollmentService.getEnrollmentsByStudentId(student.id, currentUser),
+          classroomService.getClassrooms(),
+        ]);
+        const inBranch = isStudentInBranch(student, enrs, classes, currentUser.branchId);
+        if (!inBranch) {
+          return null;
+        }
+      }
+    }
+
+    return student;
   },
 
   /**
@@ -99,12 +137,27 @@ export const studentService = {
   },
 
   /**
-   * Create a new student
+   * Create a new student with branch authorization
    */
   async createStudent(
     data: Omit<Student, "id" | "createdAt" | "updatedAt">,
-    currentUserId?: string
+    currentUserIdOrUser?: string | User | null,
+    currentUserParam?: User | null
   ): Promise<Student> {
+    const user = typeof currentUserIdOrUser === "object" ? currentUserIdOrUser : currentUserParam;
+    const currentUserId = typeof currentUserIdOrUser === "string" ? currentUserIdOrUser : (user?.id || "system");
+
+    let branchId = data.branchId;
+    if (user && user.role !== "super_admin") {
+      if (!user.branchId) {
+        throw new Error("UNAUTHORIZED_BRANCH");
+      }
+      if (data.branchId && data.branchId !== user.branchId) {
+        throw new Error("UNAUTHORIZED_BRANCH");
+      }
+      branchId = user.branchId;
+    }
+
     const cleanCode = data.studentCode.trim();
     if (!cleanCode) {
       throw new Error("STUDENT_CODE_REQUIRED");
@@ -118,6 +171,7 @@ export const studentService = {
     const now = new Date().toISOString();
     const newStudentData: Omit<Student, "id"> = {
       ...data,
+      branchId,
       studentCode: cleanCode,
       nameKh: data.nameKh.trim(),
       nameEn: data.nameEn ? data.nameEn.trim() : "",
@@ -163,17 +217,43 @@ export const studentService = {
   },
 
   /**
-   * Update student information
+   * Update student information with branch authorization
    */
   async updateStudent(
     id: string,
     updates: Partial<Student>,
-    currentUserId?: string
+    currentUserIdOrUser?: string | User | null,
+    currentUserParam?: User | null
   ): Promise<Student> {
+    const user = typeof currentUserIdOrUser === "object" ? currentUserIdOrUser : currentUserParam;
+    const currentUserId = typeof currentUserIdOrUser === "string" ? currentUserIdOrUser : (user?.id || "system");
+
+    const existing = await this.getStudentById(id);
+    if (!existing) {
+      throw new Error("STUDENT_NOT_FOUND");
+    }
+
+    if (user && user.role !== "super_admin") {
+      let isOwner = existing.branchId === user.branchId;
+      if (!isOwner) {
+        const [enrs, classes] = await Promise.all([
+          enrollmentService.getEnrollmentsByStudentId(existing.id, user),
+          classroomService.getClassrooms(),
+        ]);
+        isOwner = isStudentInBranch(existing, enrs, classes, user.branchId);
+      }
+      if (!isOwner) {
+        throw new Error("UNAUTHORIZED_BRANCH");
+      }
+      if (updates.branchId && updates.branchId !== existing.branchId) {
+        throw new Error("BRANCH_REASSIGNMENT_NOT_ALLOWED");
+      }
+    }
+
     if (updates.studentCode) {
       const cleanCode = updates.studentCode.trim();
-      const existing = await this.getStudentByCode(cleanCode);
-      if (existing && existing.id !== id) {
+      const existingWithCode = await this.getStudentByCode(cleanCode);
+      if (existingWithCode && existingWithCode.id !== id) {
         throw new Error("STUDENT_CODE_EXISTS");
       }
       updates.studentCode = cleanCode;
@@ -270,15 +350,28 @@ export const studentService = {
    */
   async importStudents(
     studentsData: Omit<Student, "id" | "createdAt" | "updatedAt">[],
-    currentUserId?: string,
+    currentUserIdOrUser?: string | User | null,
     onProgress?: (saved: number, total: number) => void,
-    defaultBranchId?: string
+    defaultBranchId?: string,
+    currentUserParam?: User | null
   ): Promise<{
     successCount: number;
     failureCount: number;
     importedStudents: Student[];
     errors: string[];
   }> {
+    const user = typeof currentUserIdOrUser === "object" ? currentUserIdOrUser : currentUserParam;
+    const currentUserId = typeof currentUserIdOrUser === "string" ? currentUserIdOrUser : (user?.id || "system");
+
+    // Enforce branch scoping for non-super_admins
+    let authoritativeBranchId = defaultBranchId;
+    if (user && user.role !== "super_admin") {
+      if (!user.branchId) {
+        throw new Error("UNAUTHORIZED_BRANCH");
+      }
+      authoritativeBranchId = user.branchId;
+    }
+
     const total = studentsData.length;
     if (total === 0) {
       return { successCount: 0, failureCount: 0, importedStudents: [], errors: [] };
@@ -291,9 +384,13 @@ export const studentService = {
     // Pre-generate full student objects with document IDs
     const preparedStudents: Student[] = studentsData.map((data) => {
       const newDocRef = doc(collection(db, "students"));
+      const assignedBranchId = (user && user.role !== "super_admin")
+        ? user.branchId
+        : (data.branchId || authoritativeBranchId);
+
       return {
         ...data,
-        branchId: data.branchId || defaultBranchId,
+        branchId: assignedBranchId,
         id: newDocRef.id,
         createdAt: now,
         updatedAt: now,

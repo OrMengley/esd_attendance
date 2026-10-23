@@ -1,1 +1,1 @@
-{"root":["./vite.config.ts"],"version":"5.7.3"}
+{"root":["./vite.config.ts","./test/add-student-to-class.test.ts","./test/branch-scoping.test.ts","./test/branch.test.ts","./test/enrollment-management.test.ts","./test/enrollment-multi-branch-isolation.test.ts","./test/multi-branch-isolation.test.ts","./test/student-import-excel.test.ts"],"version":"5.7.3"}

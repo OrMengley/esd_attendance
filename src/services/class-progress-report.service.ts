@@ -29,21 +29,36 @@ const HEALTH_CELL_COLORS: Record<ClassProgressHealth, { fill: string; font: stri
   completed: { fill: "FFE8F5E9", font: "FF2E7D32" },
 };
 
+import { getEffectiveBranchId } from "@/lib/branch-scoping";
+import { User } from "@/models/user.model";
+
 export const classProgressReportService = {
   /**
    * Fetches required collections once (no per-class reads) and computes the report.
    */
   async generateReport(
     filters: ClassProgressFilters,
-    currentUserName?: string
+    currentUserName?: string,
+    branchId?: string | null,
+    currentUser?: User | null
   ): Promise<ClassProgressReportData> {
-    const [classrooms, studyPackages, users, enrollments, holidays] = await Promise.all([
+    const effectiveBranch = currentUser
+      ? getEffectiveBranchId(currentUser, branchId)
+      : branchId && branchId !== "all"
+      ? branchId
+      : null;
+
+    let [classrooms, studyPackages, users, enrollments, holidays] = await Promise.all([
       classroomService.getClassrooms(),
       studyPackageService.getStudyPackages(),
       userService.getUsers(),
-      enrollmentService.getEnrollments(),
+      enrollmentService.getEnrollments(effectiveBranch),
       schoolHolidayService.getActiveSchoolHolidays(),
     ]);
+
+    if (effectiveBranch && effectiveBranch !== "all") {
+      classrooms = classrooms.filter((c) => c.branchId === effectiveBranch);
+    }
 
     return calculateClassProgressReport({
       filters,

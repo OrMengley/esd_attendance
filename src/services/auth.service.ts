@@ -113,5 +113,11 @@ export const authService = {
 
   logout(): void {
     this.setCurrentUser(null);
+    try {
+      localStorage.removeItem("esd_active_branch_id");
+    } catch (e) {
+      console.warn("Failed to remove active branch ID on logout:", e);
+    }
   },
 };
+

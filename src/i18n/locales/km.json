@@ -71,7 +71,8 @@
     "exportExcel": "ទាញយក Excel",
     "clearFilters": "កំណត់ឡើងវិញ",
     "systemUser": "ប្រព័ន្ធ",
-    "userNotFound": "អ្នកប្រើប្រាស់មិនមានក្នុងប្រព័ន្ធ"
+    "userNotFound": "អ្នកប្រើប្រាស់មិនមានក្នុងប្រព័ន្ធ",
+    "unauthorized": "អ្នកមិនមានសិទ្ធិអនុវត្តសកម្មភាពនេះទេ។"
   },
   "roles": {
     "super_admin": "Super Admin",

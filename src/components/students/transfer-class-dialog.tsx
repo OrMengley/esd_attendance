@@ -101,10 +101,11 @@ export const TransferClassDialog: React.FC<TransferClassDialogProps> = ({
     if (!activeEnrollment || !activeClass) return;
     setIsLoadingClasses(true);
     try {
+      const effectiveBranch = user?.role === "super_admin" ? null : user?.branchId;
       const [allClasses, allTeachers, allEnrollments] = await Promise.all([
-        classroomService.getClassrooms(),
+        classroomService.getClassrooms(effectiveBranch),
         userService.getUsers(),
-        enrollmentService.getEnrollments(),
+        enrollmentService.getEnrollments(user),
       ]);
 
       // Only active classes with the SAME study package and NOT the current class
@@ -112,7 +113,8 @@ export const TransferClassDialog: React.FC<TransferClassDialogProps> = ({
         (c) =>
           c.status === "active" &&
           c.id !== activeClass.id &&
-          c.packageId === activeEnrollment.packageId
+          c.packageId === activeEnrollment.packageId &&
+          (user?.role === "super_admin" || c.branchId === user?.branchId)
       );
 
       // Counts per classroom
@@ -188,6 +190,7 @@ export const TransferClassDialog: React.FC<TransferClassDialogProps> = ({
         targetClassroomId: selectedTargetClass.id,
         effectiveDate,
         reason: reason.trim(),
+        currentUser: user,
         currentUserId: user?.id,
       });
 
@@ -198,7 +201,9 @@ export const TransferClassDialog: React.FC<TransferClassDialogProps> = ({
       }
     } catch (err: any) {
       console.error("Transfer error:", err);
-      if (err.message === "CLASS_CAPACITY_FULL") {
+      if (err.message === "UNAUTHORIZED_BRANCH") {
+        toast.error(t("common.unauthorizedBranch", { defaultValue: "មិនមានសិទ្ធិចាត់ចែងសាខានេះទេ (Unauthorized branch)" }));
+      } else if (err.message === "CLASS_CAPACITY_FULL") {
         toast.error(t("transfer.classFull", { defaultValue: "ថ្នាក់រៀនថ្មីពេញហើយ" }));
       } else if (err.message === "DIFFERENT_PACKAGE_TRANSFER") {
         toast.error(

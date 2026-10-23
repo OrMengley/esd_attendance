@@ -75,7 +75,8 @@ export const MonthlyReportPreviewPage: React.FC = () => {
       const data = await attendanceReportService.generateMonthlyReport(
         classroomId,
         yearMonth,
-        user?.name
+        user?.name,
+        user
       );
 
       // Teacher permission check: teacher can only see their own assigned classes
@@ -91,10 +92,19 @@ export const MonthlyReportPreviewPage: React.FC = () => {
         }
       }
 
+      // Admin permission check: admin can only see their own branch classes
+      if (user?.role === "admin" && user.branchId && data.classroom.branchId !== user.branchId) {
+        setIsUnauthorized(true);
+        setIsLoading(false);
+        return;
+      }
+
       setReportData(data);
     } catch (e: any) {
       console.error("Failed to load monthly report preview:", e);
-      if (e.message === "CLASSROOM_NOT_FOUND") {
+      if (e.message?.includes("UNAUTHORIZED")) {
+        setIsUnauthorized(true);
+      } else if (e.message === "CLASSROOM_NOT_FOUND") {
         setErrorMessage("CLASSROOM_NOT_FOUND");
       } else {
         setErrorMessage("LOAD_ERROR");

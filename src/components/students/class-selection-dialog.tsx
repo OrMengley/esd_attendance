@@ -31,6 +31,7 @@ import {
   Plus,
 } from "lucide-react";
 import { formatKhmerDate } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 interface ClassSelectionDialogProps {
   open: boolean;
@@ -46,6 +47,7 @@ export const ClassSelectionDialog: React.FC<ClassSelectionDialogProps> = ({
   onSelect,
 }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [packages, setPackages] = useState<StudyPackage[]>([]);
@@ -64,11 +66,12 @@ export const ClassSelectionDialog: React.FC<ClassSelectionDialogProps> = ({
   const loadData = async () => {
     setIsLoading(true);
     try {
+      const effectiveBranch = user?.role === "super_admin" ? null : user?.branchId;
       const [clsList, pkgList, usrList, allEnrollments] = await Promise.all([
-        classroomService.getClassrooms(),
+        classroomService.getClassrooms(effectiveBranch),
         studyPackageService.getStudyPackages(),
         userService.getUsers(),
-        enrollmentService.getEnrollments(),
+        enrollmentService.getEnrollments(user),
       ]);
 
       // Only active classrooms

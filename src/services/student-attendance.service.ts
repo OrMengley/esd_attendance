@@ -13,6 +13,14 @@ import { StudyPackage } from "@/models/study-package.model";
 import { User } from "@/models/user.model";
 import { SchoolHoliday } from "@/models/school-holiday.model";
 import { getHolidayForDate } from "@/lib/holiday-calendar";
+import {
+  getEffectiveBranchId,
+  filterStudentsByBranch,
+  filterEnrollmentsByBranch,
+  filterClassesByBranch,
+  filterAttendanceByBranch,
+  isStudentInBranch,
+} from "@/lib/branch-scoping";
 
 export interface StudentListItemWithMeta {
   student: Student;
@@ -124,14 +132,23 @@ export const studentAttendanceService = {
    * Get all students accessible to current user with their latest class and attendance rate.
    * Teachers only get students who are or were enrolled in their assigned classrooms.
    */
-  async getPermittedStudentsList(user: User | null): Promise<StudentListItemWithMeta[]> {
-    const [allStudents, allEnrollments, allClasses, allUsers, allAttendance] = await Promise.all([
+  async getPermittedStudentsList(user: User | null, branchId?: string): Promise<StudentListItemWithMeta[]> {
+    const effectiveBranch = getEffectiveBranchId(user, branchId);
+
+    let [allStudents, allEnrollments, allClasses, allUsers, allAttendance] = await Promise.all([
       studentService.getStudents(),
-      enrollmentService.getEnrollments(),
+      enrollmentService.getEnrollments(effectiveBranch),
       classroomService.getClassrooms(),
       userService.getUsers(),
       attendanceService.getAttendance(),
     ]);
+
+    if (effectiveBranch && effectiveBranch !== "all") {
+      allClasses = filterClassesByBranch(allClasses, effectiveBranch);
+      allEnrollments = filterEnrollmentsByBranch(allEnrollments, allClasses, allStudents, effectiveBranch);
+      allStudents = filterStudentsByBranch(allStudents, allEnrollments, allClasses, effectiveBranch);
+      allAttendance = filterAttendanceByBranch(allAttendance, allClasses, effectiveBranch);
+    }
 
     const isTeacher = user?.role === "teacher";
     const teacherClassIds = isTeacher
@@ -260,7 +277,7 @@ export const studentAttendanceService = {
   }> {
     const [student, allEnrollments, allClasses, allPackages, allUsers, allAttendance] = await Promise.all([
       studentService.getStudentById(studentId),
-      enrollmentService.getEnrollmentsByStudentId(studentId),
+      enrollmentService.getEnrollmentsByStudentId(studentId, currentUser),
       classroomService.getClassrooms(),
       studyPackageService.getStudyPackages(),
       userService.getUsers(),
@@ -271,7 +288,15 @@ export const studentAttendanceService = {
       throw new Error("STUDENT_NOT_FOUND");
     }
 
+    if (currentUser?.role === "admin" && currentUser.branchId) {
+      const inBranch = isStudentInBranch(student, allEnrollments, allClasses, currentUser.branchId);
+      if (!inBranch) {
+        throw new Error("UNAUTHORIZED_STUDENT_ACCESS");
+      }
+    }
+
     const isTeacher = currentUser?.role === "teacher";
+    const isAdmin = currentUser?.role === "admin";
     const teacherClassIds = isTeacher
       ? allClasses
           .filter(
@@ -283,12 +308,15 @@ export const studentAttendanceService = {
       : [];
 
     // Filter permitted enrollments
-    const permittedEnrollments = isTeacher
-      ? allEnrollments.filter((e) => teacherClassIds.includes(e.classroomId))
-      : allEnrollments;
-
-    if (isTeacher && permittedEnrollments.length === 0) {
-      throw new Error("UNAUTHORIZED_STUDENT_ACCESS");
+    let permittedEnrollments = allEnrollments;
+    if (isTeacher) {
+      permittedEnrollments = allEnrollments.filter((e) => teacherClassIds.includes(e.classroomId));
+      if (permittedEnrollments.length === 0) {
+        throw new Error("UNAUTHORIZED_STUDENT_ACCESS");
+      }
+    } else if (isAdmin && currentUser.branchId) {
+      const branchClassIds = new Set(allClasses.filter((c) => c.branchId === currentUser.branchId).map((c) => c.id));
+      permittedEnrollments = allEnrollments.filter((e) => branchClassIds.has(e.classroomId));
     }
 
     const classMap = new Map<string, Classroom>();
@@ -408,7 +436,7 @@ export const studentAttendanceService = {
       activeHolidays,
     ] = await Promise.all([
       studentService.getStudentById(studentId),
-      enrollmentService.getEnrollmentsByStudentId(studentId),
+      enrollmentService.getEnrollmentsByStudentId(studentId, currentUser),
       classroomService.getClassrooms(),
       studyPackageService.getStudyPackages(),
       userService.getUsers(),
@@ -420,7 +448,15 @@ export const studentAttendanceService = {
       throw new Error("STUDENT_NOT_FOUND");
     }
 
+    if (currentUser?.role === "admin" && currentUser.branchId) {
+      const inBranch = isStudentInBranch(student, allEnrollments, allClasses, currentUser.branchId);
+      if (!inBranch) {
+        throw new Error("UNAUTHORIZED_STUDENT_ACCESS");
+      }
+    }
+
     const isTeacher = currentUser?.role === "teacher";
+    const isAdmin = currentUser?.role === "admin";
     const teacherClassIds = isTeacher
       ? allClasses
           .filter(
@@ -444,6 +480,10 @@ export const studentAttendanceService = {
     const validMonthEnrollments = allEnrollments.filter((enr) => {
       if (enr.status === "cancelled") return false;
       if (isTeacher && !teacherClassIds.includes(enr.classroomId)) return false;
+      if (isAdmin && currentUser.branchId) {
+        const cls = classMap.get(enr.classroomId);
+        if (cls?.branchId !== currentUser.branchId) return false;
+      }
 
       // Must overlap selected month
       if (enr.startDate > monthEnd) return false;

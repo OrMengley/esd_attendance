@@ -118,8 +118,13 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
       setBranches(userBranches);
 
       if (isEditMode && id) {
-        const existingClass = await classroomService.getClassroomById(id);
+        const existingClass = await classroomService.getClassroomById(id, user);
         if (existingClass) {
+          if (user?.role === "admin" && user.branchId && existingClass.branchId !== user.branchId) {
+            toast.error(t("common.unauthorized", { defaultValue: "You are not authorized to edit this classroom." }));
+            navigate("/classes");
+            return;
+          }
           setCode(existingClass.code || "");
           setName(existingClass.name || "");
           setPackageId(existingClass.packageId || "");
@@ -269,16 +274,18 @@ export const ClassroomFormPage: React.FC<ClassroomFormPageProps> = ({ mode: expl
       };
 
       if (isEditMode && id) {
-        await classroomService.updateClassroom(id, payload, user?.id);
+        await classroomService.updateClassroom(id, payload, user);
         toast.success(t("classes.updateSuccess"));
       } else {
-        const res = await classroomService.createClassroom(payload, user?.id);
+        const res = await classroomService.createClassroom(payload, user);
         toast.success(t("classes.saveSuccess"));
       }
 
       navigate("/classes");
     } catch (error: any) {
-      if (error?.message === "CLASS_CODE_EXISTS") {
+      if (error?.message?.includes("UNAUTHORIZED")) {
+        toast.error(t("common.unauthorized", { defaultValue: "You are not authorized to perform this operation." }));
+      } else if (error?.message === "CLASS_CODE_EXISTS") {
         toast.error(t("classes.codeExistsError"));
       } else {
         toast.error(t("classes.saveError"));

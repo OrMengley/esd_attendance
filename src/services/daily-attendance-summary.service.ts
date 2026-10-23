@@ -24,6 +24,7 @@ import {
   DailyAttendanceOverallSummary,
   determineClassDailyAttendanceStatus,
 } from "@/lib/daily-attendance-summary";
+import { getEffectiveBranchId } from "@/lib/branch-scoping";
 
 export interface DailyAttendanceSummaryData {
   selectedDate: string;
@@ -37,9 +38,15 @@ export const dailyAttendanceSummaryService = {
    */
   async getDailySummary(
     selectedDate: string,
-    branchId?: string | null
+    branchId?: string | null,
+    currentUser?: User | null
   ): Promise<DailyAttendanceSummaryData> {
     const targetDate = selectedDate || getCambodiaToday();
+    const effectiveBranch = currentUser
+      ? getEffectiveBranchId(currentUser, branchId)
+      : branchId && branchId !== "all"
+      ? branchId
+      : null;
 
     // 1. Fetch all core data in parallel
     const [
@@ -50,11 +57,11 @@ export const dailyAttendanceSummaryService = {
       allStudents,
       activeHolidays,
     ] = await Promise.all([
-      classroomService.getClassrooms(),
+      classroomService.getClassrooms(effectiveBranch),
       studyPackageService.getStudyPackages(),
       userService.getUsers(),
-      enrollmentService.getEnrollments(),
-      studentService.getStudents(),
+      enrollmentService.getEnrollments(effectiveBranch),
+      studentService.getStudents(effectiveBranch),
       schoolHolidayService.getActiveSchoolHolidays(),
     ]);
 
@@ -93,8 +100,8 @@ export const dailyAttendanceSummaryService = {
     const dayOfWeek = getDayOfWeekFromDateStr(targetDate);
 
     const branchClassrooms =
-      branchId && branchId !== "all"
-        ? allClassrooms.filter((c) => c.branchId === branchId)
+      effectiveBranch && effectiveBranch !== "all"
+        ? allClassrooms.filter((c) => c.branchId === effectiveBranch)
         : allClassrooms;
 
     const scheduledClassrooms = branchClassrooms.filter((c) => {

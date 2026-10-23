@@ -86,28 +86,28 @@ export const EnrollmentHistoryTable: React.FC<EnrollmentHistoryTableProps> = ({
         await enrollmentService.setEnrollmentStatus(
           targetEnrollment.id,
           "completed",
-          user?.id
+          user
         );
         toast.success(t("enrollment.completedSuccess"));
       } else if (actionType === "pause") {
         await enrollmentService.setEnrollmentStatus(
           targetEnrollment.id,
           "paused",
-          user?.id
+          user
         );
         toast.success(t("enrollment.pauseSuccess"));
       } else if (actionType === "resume") {
         await enrollmentService.setEnrollmentStatus(
           targetEnrollment.id,
           "active",
-          user?.id
+          user
         );
         toast.success(t("enrollment.resumeSuccess"));
       } else if (actionType === "cancel") {
         await enrollmentService.setEnrollmentStatus(
           targetEnrollment.id,
           "cancelled",
-          user?.id
+          user
         );
         toast.success(t("enrollment.cancelSuccess"));
       }
@@ -115,7 +115,9 @@ export const EnrollmentHistoryTable: React.FC<EnrollmentHistoryTableProps> = ({
       onRefresh();
     } catch (err: any) {
       console.error("Action error:", err);
-      if (err.message === "ACTIVE_ENROLLMENT_EXISTS") {
+      if (err.message === "UNAUTHORIZED_BRANCH") {
+        toast.error(t("common.unauthorizedBranch", { defaultValue: "មិនមានសិទ្ធិចាត់ចែងសាខានេះទេ (Unauthorized branch)" }));
+      } else if (err.message === "ACTIVE_ENROLLMENT_EXISTS") {
         toast.error(t("enrollment.activeExists"));
       } else {
         toast.error(err.message || t("common.error"));
